@@ -905,7 +905,9 @@ try {
     'launch.log',
     '-WindowStyle Hidden',
     '-RestartExisting',
-    'Hidden launch completed successfully.'
+    'Hidden launch completed successfully.',
+    'Get-DreamSkinVerifiedCdpIdentity',
+    'overlapping launch completed successfully.'
   )) {
     if (-not ($hiddenLauncher + $hiddenLauncherPowerShell).Contains($hiddenLauncherContract)) {
       throw "Hidden launcher contract is missing: $hiddenLauncherContract"
