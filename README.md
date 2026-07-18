@@ -1,6 +1,6 @@
-# Miku Skin for Codex
+# Windows Skin for Codex
 
-这是一个面向 Windows 10/11 和 Microsoft Store 版 `OpenAI.Codex` 的非官方桌面皮肤项目。它不修改 `app.asar`、应用签名或 WindowsApps 里的 Codex 文件。
+这是一个专门适配 Windows 10/11 和 Microsoft Store 版 `OpenAI.Codex` 的非官方桌面皮肤项目。项目重点解决 Store/MSIX 应用在发现、带 CDP 参数启动、版本升级、隐藏控制台和失败恢复方面的问题；Miku 与其他视觉内容作为可切换的内置主题提供。它不修改 `app.asar`、应用签名或 WindowsApps 里的 Codex 文件。
 
 ## 上游来源与分工
 
@@ -111,10 +111,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\windows\tests\run-test
 
 GitHub Actions 同时运行 Windows PowerShell 5.1 和 PowerShell 7 测试。
 
-## 发布前先读
+## 许可证与素材
 
-软件代码采用 MIT License。主题图片、角色形象、人物肖像、商标和官方 Codex 图标不自动获得 MIT 授权；官方图标只在用户本机从已安装的 Store 包复制，本仓库不分发它。
+代码使用 [MIT License](LICENSE)。该许可只覆盖软件代码，不授权主题图片、角色设计、人物肖像、截图、商标或其他第三方内容。官方 Codex 图标只在安装时从用户本机已注册的 Store 包中提取，本仓库不分发该图标文件。
 
-当前主题资源沿用 HeiGe 仓库的公开发布版本，但多项图片缺少完整来源和再分发授权记录。使用、Fork 或再次发布前请阅读 [NOTICE.md](NOTICE.md) 与 [ASSET_PROVENANCE.md](ASSET_PROVENANCE.md)，尤其不要把 MIT License 理解成图片授权。
+**素材风险提示**：本仓库维护者没有随仓库提供的角色、人物及主题图片的完整版权或可核实的再分发授权。免责声明、“仅供学习”、“非商业用途”、“粉丝作品”、“来自网络”或“AI 生成”等表述不会产生授权，也不能替代原作者、肖像权人或商标权人的许可。复制、Fork、打包 Release 或再次分发前，请自行取得所需权利，无法确认时应替换或删除相关素材。
 
-本项目是非官方项目，与 OpenAI、Crypton Future Media、miHoYo/HoYoverse、Kuro Games、Shueisha、Papergames 及其合作方没有隶属或背书关系。
+逐文件来源和已知授权状态见 [ASSET_PROVENANCE.md](ASSET_PROVENANCE.md)，发布边界见 [NOTICE.md](NOTICE.md)。本项目是非官方项目，与 OpenAI、Crypton Future Media、miHoYo/HoYoverse、Kuro Games、Shueisha、Papergames 及其合作方不存在隶属、认可或背书关系。
