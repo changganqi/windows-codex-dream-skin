@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "deepspace-star",
+  "name": "恋与深空 · 星辰",
+  "image": "hero.webp",
+  "appearance": "dark",
+  "art": { "focusX": 0.5, "focusY": 0.08, "safeArea": "left", "taskMode": "ambient" },
+  "palette": { "accent": "#9d8bff", "secondary": "#f097c8", "surface": "#201a40", "text": "#e8e2ff" }
+}

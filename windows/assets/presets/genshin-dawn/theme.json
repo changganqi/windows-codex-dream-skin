@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "genshin-dawn",
+  "name": "原神 · 晨曦",
+  "image": "hero.webp",
+  "appearance": "light",
+  "art": { "focusX": 0.5, "focusY": 0.24, "safeArea": "left", "taskMode": "ambient" },
+  "palette": { "accent": "#5b7fd6", "secondary": "#e0aa3e", "surface": "#f2f1fb", "text": "#2c3a6b" }
+}

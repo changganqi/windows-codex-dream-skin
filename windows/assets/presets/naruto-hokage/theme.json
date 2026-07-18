@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "naruto-hokage",
+  "name": "火影 · 鸣人",
+  "image": "hero.webp",
+  "appearance": "dark",
+  "art": { "focusX": 0.5, "focusY": 0.27, "safeArea": "left", "taskMode": "ambient" },
+  "palette": { "accent": "#f2801e", "secondary": "#ffd166", "surface": "#17110b", "text": "#ffe3c2" }
+}

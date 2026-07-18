@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "wuthering-echo",
+  "name": "鸣潮 · 共鸣",
+  "image": "hero.webp",
+  "appearance": "dark",
+  "art": { "focusX": 0.5, "focusY": 0.27, "safeArea": "left", "taskMode": "ambient" },
+  "palette": { "accent": "#56e0d8", "secondary": "#a98fe8", "surface": "#16121f", "text": "#e4def2" }
+}

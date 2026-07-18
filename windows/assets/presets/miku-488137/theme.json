@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "miku-488137",
+  "name": "Miku 488137",
+  "image": "hero.webp",
+  "appearance": "light",
+  "art": {
+    "focusX": 0.64,
+    "focusY": 0.38,
+    "safeArea": "left",
+    "taskMode": "banner"
+  },
+  "branding": {
+    "logo": "logo.webp",
+    "polaroid": "polaroid.webp"
+  },
+  "palette": {
+    "accent": "#19c9e5",
+    "secondary": "#ed6ec1",
+    "surface": "#f5f6fc",
+    "text": "#122c60"
+  }
+}

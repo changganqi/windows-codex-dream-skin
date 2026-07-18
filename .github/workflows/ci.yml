@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  node-tests:
+    name: Node.js regressions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          while IFS= read -r file; do
+            node --check "$file" >/dev/null
+          done < <(find windows -type f \( -name '*.mjs' -o -name '*.js' \) -print)
+      - name: Run portable tests
+        run: node --test windows/tests/*.test.mjs
+      - name: Validate default payload
+        run: node windows/scripts/injector.mjs --check-payload >/dev/null
+
+  windows-tests:
+    name: Windows (${{ matrix.name }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows PowerShell 5.1
+            executable: powershell.exe
+          - name: PowerShell 7
+            executable: pwsh.exe
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run Windows regression suite
+        shell: cmd
+        run: ${{ matrix.executable }} -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\windows\tests\run-tests.ps1

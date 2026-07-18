@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "wuthering-tide",
+  "name": "鸣潮 · 声骸",
+  "image": "hero.webp",
+  "appearance": "dark",
+  "art": { "focusX": 0.5, "focusY": 0.3, "safeArea": "left", "taskMode": "ambient" },
+  "palette": { "accent": "#3fd6d0", "secondary": "#9aa8b0", "surface": "#0d1418", "text": "#d8eef0" }
+}

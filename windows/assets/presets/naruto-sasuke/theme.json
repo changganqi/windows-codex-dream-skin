@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "naruto-sasuke",
+  "name": "火影 · 佐助",
+  "image": "hero.webp",
+  "appearance": "dark",
+  "art": { "focusX": 0.5, "focusY": 0.24, "safeArea": "left", "taskMode": "ambient" },
+  "palette": { "accent": "#d8443c", "secondary": "#7fb3ff", "surface": "#171019", "text": "#ffd9d2" }
+}
