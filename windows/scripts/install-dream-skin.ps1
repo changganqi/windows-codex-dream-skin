@@ -39,6 +39,10 @@ try {
   if (Test-DreamSkinTrayActive) {
     throw 'Exit the Codex Dream Skin tray before reinstalling so every shortcut can move to the new runtime safely.'
   }
+  if (-not (Stop-DreamSkinRecordedInjector -State $existingState)) {
+    throw 'The recorded Dream Skin watcher could not be stopped before the runtime update.'
+  }
+  Remove-Item -LiteralPath $StatePath -Force -ErrorAction SilentlyContinue
   $engine = Install-DreamSkinRuntimeEngine -SkillRoot $SkillRoot -StateRoot $StateRoot
   $null = Initialize-DreamSkinThemeStore -SkillRoot $engine.Root -StateRoot $StateRoot
   $ConfigPath = Join-Path $HOME '.codex\config.toml'

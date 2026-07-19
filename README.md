@@ -48,7 +48,7 @@
 
 ## 安装
 
-先彻底退出 Codex，包括系统托盘里的后台进程，然后双击根目录的 `install.bat`。
+下载 ZIP 后先完整解压到任意本地文件夹，再彻底退出 Codex（包括系统托盘里的后台进程），然后双击根目录的 `install.bat`。项目目录可以移动、改名，也可以包含空格或中文；不要在 ZIP 压缩包预览窗口里直接运行。
 
 也可以在 PowerShell 中运行：
 
@@ -56,11 +56,13 @@
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-安装过程把运行代码原子复制到：
+`install.bat` 会按自身所在目录找到安装脚本，不依赖固定盘符或仓库路径。BAT 只负责启动入口；安装事务会验证完整文件清单和 SHA-256，然后把运行代码原子复制到：
 
 ```text
 %LOCALAPPDATA%\CodexDreamSkin\engine
 ```
+
+复制过程先在 `%LOCALAPPDATA%\CodexDreamSkin` 下创建临时 engine，验证通过后才替换旧版本；替换失败会恢复上一版。因此安装完成后，桌面快捷方式只依赖这里的运行副本，原下载目录可以移走或删除。
 
 它会在桌面和开始菜单创建 `Codex.lnk`。该快捷方式同时启动 Codex 和 Fei watcher，不显示 PowerShell 黑框；直接打开 Store 原入口不会携带 CDP 参数，皮肤也就无法注入。
 

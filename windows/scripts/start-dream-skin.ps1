@@ -4,7 +4,11 @@ param(
   [switch]$RestartExisting,
   [switch]$PromptRestart,
   [string]$ProfilePath,
-  [switch]$ForegroundInjector
+  [switch]$ForegroundInjector,
+  [ValidateRange(15, 300)]
+  [int]$CdpReadyTimeoutSeconds = 90,
+  [string]$LaunchLogPath,
+  [string]$LaunchId
 )
 
 $ErrorActionPreference = 'Stop'
@@ -13,12 +17,36 @@ $Injector = Join-Path $PSScriptRoot 'injector.mjs'
 . (Join-Path $PSScriptRoot 'common-windows.ps1')
 . (Join-Path $PSScriptRoot 'theme-windows.ps1')
 
+function Write-DreamSkinStartupStage {
+  param([Parameter(Mandatory = $true)][string]$Stage)
+  if (-not $LaunchLogPath) { return }
+  try {
+    $stateRootForLog = [System.IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'CodexDreamSkin'))
+    $fullLogPath = [System.IO.Path]::GetFullPath($LaunchLogPath)
+    $logName = [System.IO.Path]::GetFileName($fullLogPath)
+    if ((Split-Path -Parent $fullLogPath) -ine $stateRootForLog -or
+      ($logName -ine 'launch.log' -and $logName -cnotmatch '^launch-[a-f0-9]{12}\.tmp\.log$')) {
+      return
+    }
+    $safeStage = ([regex]::Replace($Stage, '[\r\n]+', ' ')).Trim()
+    if ($safeStage.Length -gt 500) { $safeStage = $safeStage.Substring(0, 500) }
+    $id = if ($LaunchId) { $LaunchId } else { 'manual' }
+    $line = "[$((Get-Date).ToString('o'))] [$id] stage: $safeStage`r`n"
+    [System.IO.File]::AppendAllText($fullLogPath, $line, [System.Text.UTF8Encoding]::new($false))
+  } catch {
+    # Diagnostics must never make startup fail.
+  }
+}
+
+Write-DreamSkinStartupStage -Stage 'start script entered'
 $operationLock = Enter-DreamSkinOperationLock
 try {
+  Write-DreamSkinStartupStage -Stage 'operation lock acquired'
   Assert-DreamSkinPort -Port $Port
   if ($ProfilePath) { $ProfilePath = [System.IO.Path]::GetFullPath($ProfilePath) }
   $node = Get-DreamSkinNodeRuntime
   $currentCodex = Get-DreamSkinCodexInstall
+  Write-DreamSkinStartupStage -Stage "runtime resolved (Codex $($currentCodex.Version), Node $($node.Version))"
   $codex = $currentCodex
   $StateRoot = Join-Path $env:LOCALAPPDATA 'CodexDreamSkin'
   try {
@@ -105,7 +133,9 @@ try {
     if (-not $restartAuthorized) {
       throw 'Codex is open without a verified Dream Skin CDP endpoint. Close it first or explicitly use -RestartExisting.'
     }
+    Write-DreamSkinStartupStage -Stage "closing existing Codex processes ($($codexProcesses.Count))"
     Stop-DreamSkinCodex -Codex $codexToStop -AllowForce
+    Write-DreamSkinStartupStage -Stage 'existing Codex processes stopped'
     $closedExistingCodex = $true
     $codex = $currentCodex
   }
@@ -122,19 +152,22 @@ try {
         New-Item -ItemType Directory -Force -Path $ProfilePath | Out-Null
         $arguments += "--user-data-dir=$ProfilePath"
       }
-      $null = Start-DreamSkinCodex -Codex $codex -Arguments $arguments
+      Write-DreamSkinStartupStage -Stage 'activating Store Codex with loopback CDP arguments'
+      $activatedProcessId = Start-DreamSkinCodex -Codex $codex -Arguments $arguments
+      Write-DreamSkinStartupStage -Stage "Store activation returned PID $activatedProcessId"
       $launchedWithCdp = $true
     }
 
-    $deadline = (Get-Date).AddSeconds(45)
+    $deadline = (Get-Date).AddSeconds($CdpReadyTimeoutSeconds)
     $cdpIdentity = Get-DreamSkinVerifiedCdpIdentity -Port $Port -Codex $codex
     while ($null -eq $cdpIdentity) {
       if ((Get-Date) -ge $deadline) {
-        throw "Codex did not expose a verified loopback CDP endpoint on port $Port within 45 seconds."
+        throw "Codex did not expose a verified loopback CDP endpoint on port $Port within $CdpReadyTimeoutSeconds seconds."
       }
       Start-Sleep -Milliseconds 400
       $cdpIdentity = Get-DreamSkinVerifiedCdpIdentity -Port $Port -Codex $codex
     }
+    Write-DreamSkinStartupStage -Stage "verified CDP ready (browser $($cdpIdentity.BrowserId), targets $($cdpIdentity.TargetCount))"
   } catch {
     $launchError = $_
     if ($launchedWithCdp) {
@@ -155,6 +188,7 @@ try {
   }
 
   try {
+    Write-DreamSkinStartupStage -Stage 'retiring the previous watcher'
     $recordedInjectorStopped = Stop-DreamSkinRecordedInjector -State $previousState
     if (-not $recordedInjectorStopped) {
       $staleStatePath = Archive-DreamSkinStateFile -Path $StatePath
@@ -210,6 +244,7 @@ try {
       -RedirectStandardOutput $StdoutPath -RedirectStandardError $StderrPath
     Start-Sleep -Milliseconds 500
     if ($daemon.HasExited) { throw "The injector exited during startup. See $StderrPath" }
+    Write-DreamSkinStartupStage -Stage "watcher started (PID $($daemon.Id))"
 
     $injectorStartedAt = Get-DreamSkinProcessStartedAt -ProcessId $daemon.Id
     if (-not $injectorStartedAt) { throw 'The injector process identity could not be recorded safely.' }
@@ -235,11 +270,13 @@ try {
     }
     Write-DreamSkinState -Path $StatePath -State $state
 
+    Write-DreamSkinStartupStage -Stage 'verifying renderer injection'
     $verify = Invoke-DreamSkinNative -FilePath $node.Path -ArgumentList @(
       $Injector, '--verify', '--port', "$Port",
       '--browser-id', $cdpIdentity.BrowserId, '--timeout-ms', '120000')
     Write-DreamSkinUtf8FileAtomically -Path $VerifyPath -Content (($verify.Output -join "`r`n") + "`r`n")
     if ($verify.ExitCode -ne 0) { throw "Dream Skin verification failed. See $VerifyPath" }
+    Write-DreamSkinStartupStage -Stage 'renderer injection verified'
   } catch {
     $startupError = $_
     $injectorStopped = $true
@@ -292,7 +329,11 @@ try {
     throw $startupError
   }
 
+  Write-DreamSkinStartupStage -Stage 'startup completed'
   Write-Host "Codex Dream Skin is active on verified loopback port $Port."
+} catch {
+  Write-DreamSkinStartupStage -Stage "startup failed: $($_.Exception.Message)"
+  throw
 } finally {
   if ($null -ne $operationLock) { Exit-DreamSkinOperationLock -Mutex $operationLock }
 }

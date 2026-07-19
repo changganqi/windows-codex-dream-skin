@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.3 - 2026-07-19
+
+- Replaced the slow `Get-NetTCPConnection` CDP ownership probe with the native Windows IP Helper API for fast IPv4/IPv6 listener validation.
+- Added per-stage launch timing, unique launch IDs, an atomic latest `launch.log`, and append-only `launch-history.log` diagnostics.
+- Made an already healthy shortcut launch idempotent so repeated clicks no longer restart the watcher.
+- Extended the bounded cold CDP wait to 90 seconds without allowing slow probes to turn it into a multi-minute pseudo-timeout.
+- Hardened reinstall by stopping the recorded watcher before atomically replacing `%LOCALAPPDATA%\CodexDreamSkin\engine`.
+- Clarified portable ZIP installation and kept `install.bat` open on failure so the actual error remains visible.
+
 ## 1.0.2 - 2026-07-18
 
 - Added a watcher-persisted native Codex mode that keeps the theme-center entry available.

@@ -56,6 +56,23 @@ try {
     throw 'Installed runtime retained an Internet-zone marker and cannot use RemoteSigned safely.'
   }
 
+  $testListener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+  try {
+    $testListener.Start()
+    $testPort = ([System.Net.IPEndPoint]$testListener.LocalEndpoint).Port
+    $listenerTimer = [System.Diagnostics.Stopwatch]::StartNew()
+    $listenerRecords = @(Get-DreamSkinPortListeners -Port $testPort)
+    $listenerTimer.Stop()
+    if ($listenerRecords.Count -ne 1 -or
+      $listenerRecords[0].LocalAddress -ne '127.0.0.1' -or
+      $listenerRecords[0].OwningProcess -ne $PID -or
+      $listenerTimer.ElapsedMilliseconds -gt 5000) {
+      throw 'Native TCP listener ownership lookup is missing, inaccurate, or unexpectedly slow.'
+    }
+  } finally {
+    $testListener.Stop()
+  }
+
   [System.IO.File]::WriteAllText((Join-Path $engine.Root 'stale-runtime.txt'), 'stale')
   [System.IO.File]::WriteAllText((Join-Path $runtimeSourceRoot 'scripts\runtime-update.test'), 'updated')
   $realRuntimeCleanup = (Get-Command Remove-DreamSkinRuntimeTree -CommandType Function).ScriptBlock
@@ -130,6 +147,10 @@ try {
 
   $installSource = Read-DreamSkinUtf8File -Path (Join-Path $Root 'scripts\install-dream-skin.ps1')
   $commonSource = Read-DreamSkinUtf8File -Path (Join-Path $Root 'scripts\common-windows.ps1')
+  if ($commonSource.Contains('Get-NetTCPConnection') -or
+    -not $commonSource.Contains('CodexDreamSkin.TcpListenerInspector')) {
+    throw 'CDP listener ownership still depends on the slow PowerShell networking provider.'
+  }
   $hashVerificationIndex = $commonSource.IndexOf(
     'Staged Dream Skin runtime failed hash verification', [System.StringComparison]::Ordinal
   )
@@ -877,6 +898,12 @@ try {
     -not $startSource.Contains("'--browser-id', `$cdpIdentity.BrowserId, '--timeout-ms', '120000'")) {
     throw 'Start does not retire previous-boot state before launch or allow enough time for a cold renderer.'
   }
+  $installSource = Read-DreamSkinUtf8File -Path (Join-Path $Root 'scripts\install-dream-skin.ps1')
+  $installStopIndex = $installSource.IndexOf('Stop-DreamSkinRecordedInjector -State $existingState', [System.StringComparison]::Ordinal)
+  $installRuntimeIndex = $installSource.IndexOf('Install-DreamSkinRuntimeEngine -SkillRoot $SkillRoot', [System.StringComparison]::Ordinal)
+  if ($installStopIndex -lt 0 -or $installRuntimeIndex -le $installStopIndex) {
+    throw 'Install does not stop the recorded watcher before atomically replacing the runtime.'
+  }
   if ($commonSource.Contains('Wait-Process -Id $processId -Timeout') -or
     -not $commonSource.Contains('$stopDeadline = (Get-Date).AddSeconds(10)')) {
     throw 'Recorded injector stop still depends on a PowerShell 7-only timeout or lacks a bounded 5.1 poll.'
@@ -907,7 +934,9 @@ try {
     '-RestartExisting',
     'Hidden launch completed successfully.',
     'Get-DreamSkinVerifiedCdpIdentity',
-    'overlapping launch completed successfully.'
+    'overlapping launch completed successfully.',
+    'launch-history.log',
+    'CdpReadyTimeoutSeconds 90'
   )) {
     if (-not ($hiddenLauncher + $hiddenLauncherPowerShell).Contains($hiddenLauncherContract)) {
       throw "Hidden launcher contract is missing: $hiddenLauncherContract"

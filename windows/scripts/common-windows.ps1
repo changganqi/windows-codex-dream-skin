@@ -707,22 +707,163 @@ function Get-DreamSkinCdpBrowserIdentity {
   }
 }
 
+function Initialize-DreamSkinTcpInspector {
+  if ('CodexDreamSkin.TcpListenerInspector' -as [type]) { return }
+  Add-Type -TypeDefinition @'
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Net;
+using System.Runtime.InteropServices;
+
+namespace CodexDreamSkin {
+  public sealed class TcpListenerRecord {
+    public string LocalAddress { get; private set; }
+    public int LocalPort { get; private set; }
+    public int OwningProcess { get; private set; }
+
+    public TcpListenerRecord(string localAddress, int localPort, int owningProcess) {
+      LocalAddress = localAddress;
+      LocalPort = localPort;
+      OwningProcess = owningProcess;
+    }
+  }
+
+  [StructLayout(LayoutKind.Sequential)]
+  internal struct MibTcpRowOwnerPid {
+    public uint State;
+    public uint LocalAddress;
+    public uint LocalPort;
+    public uint RemoteAddress;
+    public uint RemotePort;
+    public uint OwningProcess;
+  }
+
+  [StructLayout(LayoutKind.Sequential)]
+  internal struct MibTcp6RowOwnerPid {
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
+    public byte[] LocalAddress;
+    public uint LocalScopeId;
+    public uint LocalPort;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)]
+    public byte[] RemoteAddress;
+    public uint RemoteScopeId;
+    public uint RemotePort;
+    public uint State;
+    public uint OwningProcess;
+  }
+
+  public static class TcpListenerInspector {
+    private const uint NoError = 0;
+    private const uint ErrorInsufficientBuffer = 122;
+    private const int AddressFamilyInet = 2;
+    private const int AddressFamilyInet6 = 23;
+    private const int TcpTableOwnerPidListener = 3;
+
+    [DllImport("iphlpapi.dll", SetLastError = true)]
+    private static extern uint GetExtendedTcpTable(
+      IntPtr table,
+      ref int tableSize,
+      bool order,
+      int addressFamily,
+      int tableClass,
+      uint reserved
+    );
+
+    public static TcpListenerRecord[] GetListeners(int localPort) {
+      if (localPort < 1 || localPort > 65535) throw new ArgumentOutOfRangeException("localPort");
+      var records = new List<TcpListenerRecord>();
+      ReadIpv4(localPort, records);
+      ReadIpv6(localPort, records);
+      return records.ToArray();
+    }
+
+    private static int DecodePort(uint value) {
+      byte[] bytes = BitConverter.GetBytes(value);
+      return (bytes[0] << 8) | bytes[1];
+    }
+
+    private static IntPtr ReadTable(int addressFamily, out int rowCount) {
+      int size = 0;
+      uint result = GetExtendedTcpTable(
+        IntPtr.Zero, ref size, false, addressFamily, TcpTableOwnerPidListener, 0);
+      if (result != NoError && result != ErrorInsufficientBuffer) {
+        throw new Win32Exception((int)result, "GetExtendedTcpTable size query failed");
+      }
+      if (size < sizeof(int)) {
+        rowCount = 0;
+        return IntPtr.Zero;
+      }
+      IntPtr table = Marshal.AllocHGlobal(size);
+      result = GetExtendedTcpTable(
+        table, ref size, false, addressFamily, TcpTableOwnerPidListener, 0);
+      if (result != NoError) {
+        Marshal.FreeHGlobal(table);
+        throw new Win32Exception((int)result, "GetExtendedTcpTable failed");
+      }
+      rowCount = Marshal.ReadInt32(table);
+      return table;
+    }
+
+    private static void ReadIpv4(int localPort, List<TcpListenerRecord> records) {
+      int count;
+      IntPtr table = ReadTable(AddressFamilyInet, out count);
+      if (table == IntPtr.Zero) return;
+      try {
+        int rowSize = Marshal.SizeOf(typeof(MibTcpRowOwnerPid));
+        IntPtr rowPointer = IntPtr.Add(table, sizeof(int));
+        for (int index = 0; index < count; index++) {
+          var row = (MibTcpRowOwnerPid)Marshal.PtrToStructure(
+            IntPtr.Add(rowPointer, index * rowSize), typeof(MibTcpRowOwnerPid));
+          int port = DecodePort(row.LocalPort);
+          if (port != localPort) continue;
+          string address = new IPAddress(BitConverter.GetBytes(row.LocalAddress)).ToString();
+          records.Add(new TcpListenerRecord(address, port, (int)row.OwningProcess));
+        }
+      } finally {
+        Marshal.FreeHGlobal(table);
+      }
+    }
+
+    private static void ReadIpv6(int localPort, List<TcpListenerRecord> records) {
+      int count;
+      IntPtr table = ReadTable(AddressFamilyInet6, out count);
+      if (table == IntPtr.Zero) return;
+      try {
+        int rowSize = Marshal.SizeOf(typeof(MibTcp6RowOwnerPid));
+        IntPtr rowPointer = IntPtr.Add(table, sizeof(int));
+        for (int index = 0; index < count; index++) {
+          var row = (MibTcp6RowOwnerPid)Marshal.PtrToStructure(
+            IntPtr.Add(rowPointer, index * rowSize), typeof(MibTcp6RowOwnerPid));
+          int port = DecodePort(row.LocalPort);
+          if (port != localPort) continue;
+          string address = new IPAddress(row.LocalAddress, row.LocalScopeId).ToString();
+          records.Add(new TcpListenerRecord(address, port, (int)row.OwningProcess));
+        }
+      } finally {
+        Marshal.FreeHGlobal(table);
+      }
+    }
+  }
+}
+'@
+}
+
 function Get-DreamSkinPortListeners {
   param([int]$Port)
-  if (-not (Get-Command Get-NetTCPConnection -ErrorAction SilentlyContinue)) {
-    throw 'Get-NetTCPConnection is required to verify CDP listener ownership.'
-  }
-  return @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue)
+  if ($Port -lt 1 -or $Port -gt 65535) { throw "Invalid listener port: $Port" }
+  Initialize-DreamSkinTcpInspector
+  return @([CodexDreamSkin.TcpListenerInspector]::GetListeners($Port))
 }
 
 function Test-DreamSkinPortAvailable {
   param([int]$Port)
-  return (Get-DreamSkinPortListeners -Port $Port).Count -eq 0
+  return @(Get-DreamSkinPortListeners -Port $Port).Count -eq 0
 }
 
 function Test-DreamSkinCodexPortOwner {
   param([int]$Port, [Parameter(Mandatory = $true)][object]$Codex)
-  $listeners = Get-DreamSkinPortListeners -Port $Port
+  $listeners = @(Get-DreamSkinPortListeners -Port $Port)
   if ($listeners.Count -eq 0) { return $false }
   foreach ($listener in $listeners) {
     if ($listener.LocalAddress -notin @('127.0.0.1', '::1')) { return $false }
@@ -740,7 +881,7 @@ function Get-DreamSkinVerifiedCdpIdentity {
   if (-not (Test-DreamSkinCodexPortOwner -Port $Port -Codex $Codex)) { return $null }
   $browser = Get-DreamSkinCdpBrowserIdentity -Port $Port
   if ($null -eq $browser) { return $null }
-  $targets = Get-DreamSkinCdpTargets -Port $Port
+  $targets = @(Get-DreamSkinCdpTargets -Port $Port)
   if ($targets.Count -eq 0) { return $null }
   if (-not (Test-DreamSkinCodexPortOwner -Port $Port -Codex $Codex)) { return $null }
   return [pscustomobject]@{
@@ -876,13 +1017,12 @@ function Get-DreamSkinProcessStartedAt {
   }
 }
 
-function Stop-DreamSkinRecordedInjector {
-  param([AllowNull()][object]$State)
-  if ($null -eq $State -or -not $State.injectorPid) { return $true }
-  $processId = [int]$State.injectorPid
-  $process = Get-CimInstance Win32_Process -Filter "ProcessId = $processId" -ErrorAction SilentlyContinue
-  if (-not $process) { return $true }
-
+function Test-DreamSkinRecordedInjectorIdentity {
+  param(
+    [Parameter(Mandatory = $true)][object]$State,
+    [Parameter(Mandatory = $true)][object]$Process
+  )
+  $processId = [int]$Process.ProcessId
   $expectedInjector = if ($State.injectorPath) {
     "$($State.injectorPath)"
   } elseif ($State.skillRoot) {
@@ -913,9 +1053,25 @@ function Stop-DreamSkinRecordedInjector {
   }
   $startedAt = Get-DreamSkinProcessStartedAt -ProcessId $processId
   $startMatches = -not $State.injectorStartedAt -or $startedAt -eq "$($State.injectorStartedAt)"
-  $identityMatches = [bool]($isNodeExecutable -and $nodeMatches -and $injectorMatches -and $startMatches)
+  return [bool]($isNodeExecutable -and $nodeMatches -and $injectorMatches -and $startMatches)
+}
 
-  if (-not $identityMatches) {
+function Test-DreamSkinRecordedInjectorActive {
+  param([AllowNull()][object]$State)
+  if ($null -eq $State -or -not $State.injectorPid) { return $false }
+  $process = Get-CimInstance Win32_Process -Filter "ProcessId = $([int]$State.injectorPid)" -ErrorAction SilentlyContinue
+  if (-not $process) { return $false }
+  return Test-DreamSkinRecordedInjectorIdentity -State $State -Process $process
+}
+
+function Stop-DreamSkinRecordedInjector {
+  param([AllowNull()][object]$State)
+  if ($null -eq $State -or -not $State.injectorPid) { return $true }
+  $processId = [int]$State.injectorPid
+  $process = Get-CimInstance Win32_Process -Filter "ProcessId = $processId" -ErrorAction SilentlyContinue
+  if (-not $process) { return $true }
+
+  if (-not (Test-DreamSkinRecordedInjectorIdentity -State $State -Process $process)) {
     throw "The recorded injector PID $processId is running, but its visible identity does not match the saved Dream Skin process. State was preserved."
   }
 
