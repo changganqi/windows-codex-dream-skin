@@ -1,13 +1,13 @@
 # Windows Skin for Codex
 
-这是一个专门适配 Windows 10/11 和 Microsoft Store 版 `OpenAI.Codex` 的非官方桌面皮肤项目。项目重点解决 Store/MSIX 应用在发现、带 CDP 参数启动、版本升级、隐藏控制台和失败恢复方面的问题；Miku 与其他视觉内容作为可切换的内置主题提供。它不修改 `app.asar`、应用签名或 WindowsApps 里的 Codex 文件。
+这是一个专门适配 Windows 10/11 和 Microsoft Store 版 `OpenAI.Codex` 的非官方桌面皮肤项目。项目重点解决 Store/MSIX 应用在发现、带 CDP 参数启动、版本升级、隐藏控制台和失败恢复方面的问题；视觉内容作为可切换的内置主题提供。它不修改 `app.asar`、应用签名或 WindowsApps 里的 Codex 文件。
 
 ## 上游来源与分工
 
 本项目在下面两个仓库的公开代码和资源基础上修改，并保留了各自擅长的部分：
 
 - [Fei-Away/Codex-Dream-Skin](https://github.com/Fei-Away/Codex-Dream-Skin)：提供 Windows 启动链路、Microsoft Store/MSIX 发现、CDP 注入、watcher、状态恢复和回滚基础。
-- [HeiGeAi/heige-codex-skin-studio](https://github.com/HeiGeAi/heige-codex-skin-studio)：提供主题中心 UI、Miku 视觉资源、其他内置主题和可选的 Miku Future 宠物。
+- [HeiGeAi/heige-codex-skin-studio](https://github.com/HeiGeAi/heige-codex-skin-studio)：提供主题中心 UI、Miku 视觉资源、其他内置主题和可选的 Future 宠物。
 
 运行时仍由 Fei watcher 负责，HeiGe 的旧后台控制器、计划任务和“皮肤常驻”机制没有带进来。视觉资源的来源与再分发状态单独记录在 [ASSET_PROVENANCE.md](ASSET_PROVENANCE.md)，第三方代码说明见 [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)。
 
