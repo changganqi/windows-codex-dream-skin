@@ -21,9 +21,13 @@
 
 ## 界面预览
 
-主题中心保留 HeiGe 的卡片式 UI，并加入 watcher 管理的拍立得滑块开关：
+Miku 主题应用后的 Codex 主页：
 
-![Miku 主题中心与 Windows Skin for Codex 前端预览](docs/images/windows-skin-preview.png)
+![Miku Windows Skin for Codex 主页预览](docs/images/windows-skin-preview.png)
+
+任务工作区与输出面板：
+
+![Miku Windows Skin for Codex 任务工作区预览](docs/images/windows-skin-preview2.png)
 
 ## 现在有什么
 
