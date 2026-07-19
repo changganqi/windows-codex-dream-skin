@@ -21,7 +21,7 @@
 
 ## 界面预览
 
-Miku 主题应用后的 Codex 主页：
+主题应用后的 Codex 主页：
 
 ![Miku Windows Skin for Codex 主页预览](docs/images/windows-skin-preview.png)
 
