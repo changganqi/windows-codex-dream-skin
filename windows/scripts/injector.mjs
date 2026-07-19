@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import { createHash } from "node:crypto";
+import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { readImageMetadata } from "./image-metadata.mjs";
@@ -25,6 +26,7 @@ const UI_PREFERENCES_SCHEMA = 1;
 const THEME_REQUEST_KEY = "__CODEX_DREAM_SKIN_THEME_REQUEST__";
 const THEME_ACK_KEY = "__CODEX_DREAM_SKIN_THEME_ACK__";
 const NATIVE_THEME_ID = "codex-native";
+const NATIVE_TITLEBAR_SCRIPT = path.join(here, "native-titlebar.ps1");
 
 class CdpIdentityMismatchError extends Error {}
 
@@ -679,6 +681,30 @@ function preferredFallbackEntry(catalog) {
     [...catalog.entries.values()][0] ?? null;
 }
 
+function colorToHex(value, fallback) {
+  return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
+}
+
+function applyNativeTitlebar(theme) {
+  if (process.platform !== "win32") return;
+  const appearance = ["auto", "light", "dark"].includes(theme?.appearance) ? theme.appearance : "auto";
+  const dark = appearance === "dark";
+  const palette = theme?.palette ?? {};
+  const captionColor = colorToHex(palette.surface, dark ? "#171a2e" : "#f5f6fc");
+  const textColor = colorToHex(palette.text, dark ? "#f0e6c8" : "#122c60");
+  const powershell = process.env.SystemRoot
+    ? path.join(process.env.SystemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
+    : "powershell.exe";
+  const child = spawn(powershell, [
+    "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+    "-File", NATIVE_TITLEBAR_SCRIPT,
+    "-Appearance", appearance,
+    "-CaptionColor", captionColor,
+    "-TextColor", textColor,
+  ], { windowsHide: true, stdio: "ignore" });
+  child.on("error", () => {});
+}
+
 async function loadNativePayload(themeDir, catalog = null) {
   const resolvedCatalog = catalog ?? await loadThemeCatalog(themeDir);
   const baseTheme = preferredFallbackEntry(resolvedCatalog) ?? await loadTheme(themeDir);
@@ -1235,6 +1261,7 @@ async function runWatch(options) {
       }
        loadedPayload = await loadPayload(options.themeDir, initialEntry, themeCatalog);
     }
+    applyNativeTitlebar(loadedPayload?.theme);
     lastStrongThemeAuditAt = Date.now();
     paused = await fileExists(options.pauseFile);
     while (!stopping) {
@@ -1398,6 +1425,8 @@ async function runWatch(options) {
       themeCatalog = nextCatalog;
       loadedPayload = nextPayload;
       paused = nextPaused;
+
+      if (payloadChanged) applyNativeTitlebar(loadedPayload?.theme);
 
       if (pauseChanged || payloadChanged) {
         for (const [id, session] of sessions) {

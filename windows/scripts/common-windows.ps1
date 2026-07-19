@@ -158,6 +158,7 @@ function Get-DreamSkinRuntimeEnginePaths {
     Launcher = Join-Path $scripts 'launch-dream-skin.vbs'
     Restore = Join-Path $scripts 'restore-dream-skin.ps1'
     Tray = Join-Path $scripts 'tray-dream-skin.ps1'
+    NativeTitleBar = Join-Path $scripts 'native-titlebar.ps1'
   }
 }
 
@@ -261,6 +262,7 @@ function Install-DreamSkinRuntimeEngine {
     'scripts\install-dream-skin.ps1',
     'scripts\launch-dream-skin.ps1',
     'scripts\launch-dream-skin.vbs',
+    'scripts\native-titlebar.ps1',
     'scripts\restore-dream-skin.ps1',
     'scripts\start-dream-skin.ps1',
     'scripts\theme-windows.ps1',
