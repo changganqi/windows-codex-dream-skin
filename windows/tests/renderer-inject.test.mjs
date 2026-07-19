@@ -425,9 +425,10 @@ const grid = backdrop.querySelector('[data-dream-role="theme-grid"]');
 assert.equal(grid.children.length, 2);
 const polaroidToggle = backdrop.querySelector('[data-dream-role="polaroid-toggle"]');
 assert.ok(polaroidToggle, "theme center should expose the polaroid visibility toggle");
-assert.equal(polaroidToggle["aria-pressed"], "true");
+assert.equal(polaroidToggle.role, "switch");
+assert.equal(polaroidToggle["aria-checked"], "true");
 polaroidToggle.click();
-assert.equal(polaroidToggle["aria-pressed"], "false");
+assert.equal(polaroidToggle["aria-checked"], "false");
 assert.equal(menuFixture.context.window.__CODEX_DREAM_SKIN_THEME_REQUEST__.kind, "set-polaroid-visibility");
 assert.equal(menuFixture.context.window.__CODEX_DREAM_SKIN_THEME_REQUEST__.visible, false);
 grid.children[grid.children.length - 1].click();
@@ -444,5 +445,9 @@ assert.match(css, /\[data-dream-role="theme-trigger"\][\s\S]*-webkit-app-region:
   "the physical theme button must opt out of Electron's draggable titlebar region");
 assert.match(css, /dream-theme-dark[\s\S]*header\[class~="bg-token-dropdown-background"\][\s\S]*var\(--dream-accent\)/,
   "dark secondary-panel headers must use the active theme accent instead of the native purple token");
+assert.match(css, /polaroid-toggle-knob[\s\S]*aria-checked="true"/,
+  "the polaroid control must use a HeiGe-style sliding switch");
+assert.match(css, /切换底部面板显示[\s\S]*var\(--dream-accent\)/,
+  "dark top-right panel controls must use the active theme accent");
 
 console.log("PASS: renderer applies adaptive theme metadata and preserves transparent auxiliary windows.");

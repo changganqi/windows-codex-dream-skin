@@ -46,6 +46,8 @@
   let observer = null;
   let themeCenter = null;
   let themeCenterDisposers = [];
+  let forcedElectronAppearance = null;
+  let originalElectronAppearance = null;
   window.__CODEX_DREAM_SKIN_DISABLED__ = false;
 
   const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, Number(value)));
@@ -309,6 +311,12 @@
   const clearSkinVisuals = () => {
     const root = document.documentElement;
     root?.classList.remove(...ROOT_CLASSES);
+    if (root && forcedElectronAppearance) {
+      root.classList.remove("electron-light", "electron-dark");
+      if (originalElectronAppearance) root.classList.add(`electron-${originalElectronAppearance}`);
+    }
+    forcedElectronAppearance = null;
+    originalElectronAppearance = null;
     for (const property of ROOT_PROPERTIES) root?.style.removeProperty(property);
     document.querySelectorAll(".dream-home").forEach((node) => node.classList.remove("dream-home"));
     document.querySelectorAll(".dream-task").forEach((node) => node.classList.remove("dream-task"));
@@ -343,6 +351,14 @@
       : config.taskMode;
     const accent = config.accent || `rgb(${profile.accent.join(" ")})`;
     const accentInk = luminance(...profile.accent) > .42 ? "rgb(26 24 28)" : "rgb(250 248 251)";
+    if (!originalElectronAppearance) {
+      originalElectronAppearance = root.classList.contains("electron-dark") ? "dark"
+        : root.classList.contains("electron-light") ? "light" : null;
+    }
+    const electronAppearance = appearance === "dark" ? "dark" : "light";
+    root.classList.toggle("electron-dark", electronAppearance === "dark");
+    root.classList.toggle("electron-light", electronAppearance === "light");
+    forcedElectronAppearance = electronAppearance;
     root.classList.toggle("dream-theme-light", appearance === "light");
     root.classList.toggle("dream-theme-dark", appearance === "dark");
     root.classList.toggle("dream-art-wide", profile.aspect >= 1.75);
@@ -595,18 +611,29 @@
     for (const node of [currentHero, quickActions, builtInHeading, grid]) scroll.appendChild(node);
     const footer = document.createElement("footer");
     footer.dataset.dreamRole = "theme-footer";
+    const polaroidControl = document.createElement("div");
+    polaroidControl.dataset.dreamRole = "polaroid-control";
+    const polaroidLabel = document.createElement("span");
+    polaroidLabel.textContent = "展示拍立得";
     const polaroidToggle = document.createElement("button");
     polaroidToggle.type = "button";
     polaroidToggle.dataset.dreamRole = "polaroid-toggle";
-    polaroidToggle.setAttribute("aria-pressed", String(showPolaroid));
-    polaroidToggle.textContent = "展示拍立得";
+    polaroidToggle.setAttribute("role", "switch");
+    polaroidToggle.setAttribute("aria-checked", String(showPolaroid));
+    polaroidToggle.setAttribute("aria-label", "展示拍立得");
+    const polaroidKnob = document.createElement("span");
+    polaroidKnob.dataset.dreamRole = "polaroid-toggle-knob";
+    polaroidKnob.setAttribute("aria-hidden", "true");
+    polaroidToggle.appendChild(polaroidKnob);
+    polaroidControl.appendChild(polaroidLabel);
+    polaroidControl.appendChild(polaroidToggle);
     const status = document.createElement("div");
     status.dataset.dreamRole = "status";
     status.dataset.state = "saved";
     status.setAttribute("role", "status");
     status.setAttribute("aria-live", "polite");
     status.textContent = "已保存";
-    footer.appendChild(polaroidToggle);
+    footer.appendChild(polaroidControl);
     footer.appendChild(status);
     const picker = document.createElement("input");
     picker.type = "file";
@@ -689,12 +716,21 @@
       useNativeModeLocally();
       setThemeCenterStatus("正在由 watcher 保存原生模式…", "pending");
     });
-    polaroidToggle.addEventListener("click", () => {
+    const paintPolaroidToggle = () => {
+      polaroidToggle.setAttribute("aria-checked", String(showPolaroid));
+    };
+    const togglePolaroid = () => {
       showPolaroid = !showPolaroid;
-      polaroidToggle.setAttribute("aria-pressed", String(showPolaroid));
+      paintPolaroidToggle();
       ensure();
       requestTheme({ kind: "set-polaroid-visibility", visible: showPolaroid });
       setThemeCenterStatus(showPolaroid ? "正在由 watcher 显示拍立得…" : "正在由 watcher 隐藏拍立得…", "pending");
+    };
+    polaroidToggle.addEventListener("click", togglePolaroid);
+    polaroidToggle.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      togglePolaroid();
     });
     deleteThemeButton.addEventListener("click", () => {
       if (!contextEntry || contextEntry.id === NATIVE_THEME_ID ||

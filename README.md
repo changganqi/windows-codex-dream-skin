@@ -19,10 +19,15 @@
 - watcher 持久保存主题、原生模式、隐藏主题清单和拍立得开关；切换主题不需要安装 HeiGe 的常驻控制器。
 - 引擎更新采用临时目录验证和原子替换，失败时保留上一版；`restore.bat` 可以恢复原生界面。Windows PowerShell 5.1、PowerShell 7 和 Node 测试都放在仓库里。
 
+## 界面预览
+
+主题中心保留 HeiGe 的卡片式 UI，并加入 watcher 管理的拍立得滑块开关：
+
+![Miku 主题中心与 Windows Skin for Codex 前端预览](docs/images/windows-skin-preview.png)
+
 ## 现在有什么
 
 - HeiGe 风格主题中心，顶部圆形按钮可直接切换主题或导入图片。
-- 10 个 HeiGe 预设：Miku、原神、鸣潮、火影、恋与深空和大佬点烟；另保留 1 个 Fei 预设。
 - 主题选择写入 `%LOCALAPPDATA%\CodexDreamSkin\selected-theme.json`，由 Fei watcher 在页面重载后重新注入。
 - 主题中心底部的“展示拍立得”按钮只控制右下角 Miku 拍立得卡片；状态由 watcher 写入 `%LOCALAPPDATA%\CodexDreamSkin\ui-preferences.json`，切换主题、重启 Codex 和升级引擎都会保留。
 - 桌面主入口叫 `Codex.lnk`，使用官方 Codex 图标，并通过 `wscript.exe` 隐藏控制台。图标缓存位于 `%LOCALAPPDATA%\CodexDreamSkin\codex.ico`。

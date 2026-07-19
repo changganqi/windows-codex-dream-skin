@@ -69,6 +69,12 @@
   --dream-task-immersive-far: color-mix(in oklab, var(--dream-surface) 60%, transparent);
 }
 
+html.codex-dream-skin.dream-theme-dark,
+html.codex-dream-skin.dream-theme-dark body { color-scheme: dark !important; }
+
+html.codex-dream-skin.dream-theme-light,
+html.codex-dream-skin.dream-theme-light body { color-scheme: light !important; }
+
 html.codex-dream-skin body {
   background: var(--dream-canvas) !important;
   color: var(--dream-text) !important;
@@ -277,6 +283,23 @@ html.codex-dream-skin.dream-theme-dark
 html.codex-dream-skin.dream-theme-dark main.main-surface > header.app-header-tint button[aria-label],
 html.codex-dream-skin.dream-theme-dark main.main-surface > header.app-header-tint button[aria-label] svg {
   color: var(--dream-accent) !important;
+}
+
+html.codex-dream-skin.dream-theme-dark main.main-surface > header.app-header-tint
+  button[aria-label="切换置顶摘要"],
+html.codex-dream-skin.dream-theme-dark main.main-surface > header.app-header-tint
+  button[aria-label="切换底部面板显示"],
+html.codex-dream-skin.dream-theme-dark main.main-surface > header.app-header-tint
+  button[aria-label="显示/隐藏侧边栏"],
+html.codex-dream-skin.dream-theme-dark main.main-surface > header.app-header-tint
+  button[aria-label="切换置顶摘要"] svg,
+html.codex-dream-skin.dream-theme-dark main.main-surface > header.app-header-tint
+  button[aria-label="切换底部面板显示"] svg,
+html.codex-dream-skin.dream-theme-dark main.main-surface > header.app-header-tint
+  button[aria-label="显示/隐藏侧边栏"] svg {
+  color: var(--dream-accent) !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
 }
 
 html.codex-dream-skin.dream-theme-dark
@@ -621,25 +644,53 @@ html.codex-dream-skin.dream-theme-dark [data-app-action-sidebar-thread-row] butt
 #codex-dream-theme-center [data-dream-role="status"][data-state="saving"] { color: #7a5a12; background: rgba(224,170,62,.12); }
 #codex-dream-theme-center [data-dream-role="status"][data-kind="error"] { color: #713a31; background: rgba(187,72,50,.1); }
 
-#codex-dream-theme-center [data-dream-role="polaroid-toggle"] {
-  min-height: 32px;
-  padding: 6px 11px;
-  border: 1px solid rgba(23,77,102,.12);
-  border-radius: 10px;
-  color: #31526b;
-  background: rgba(255,255,255,.58);
-  cursor: pointer;
-  font: inherit;
+#codex-dream-theme-center [data-dream-role="polaroid-control"] {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #17344f;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 750;
+}
+
+#codex-dream-theme-center [data-dream-role="polaroid-toggle"] {
+  position: relative;
+  flex: none;
+  width: 42px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid #31526b;
+  border-radius: 999px;
+  color: transparent;
+  background: #66788a;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
 }
 
 #codex-dream-theme-center [data-dream-role="polaroid-toggle"]:hover,
-#codex-dream-theme-center [data-dream-role="polaroid-toggle"][aria-pressed="true"] {
-  border-color: color-mix(in srgb, var(--dream-accent) 48%, transparent);
-  color: #17344f;
-  background: color-mix(in srgb, var(--dream-accent) 13%, rgba(255,255,255,.86));
+#codex-dream-theme-center [data-dream-role="polaroid-toggle"]:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--dream-accent) 28%, transparent);
 }
+
+#codex-dream-theme-center [data-dream-role="polaroid-toggle"][aria-checked="true"] {
+  border-color: color-mix(in srgb, var(--dream-accent) 70%, #31526b);
+  background: #087d8a;
+}
+
+#codex-dream-theme-center [data-dream-role="polaroid-toggle-knob"] {
+  position: absolute;
+  top: 3px;
+  left: 4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,.24);
+  transition: left 160ms ease;
+}
+
+#codex-dream-theme-center [data-dream-role="polaroid-toggle"][aria-checked="true"]
+  [data-dream-role="polaroid-toggle-knob"] { left: 21px; }
 
 @media (max-width: 979px) {
   #codex-dream-theme-center [data-dream-role="theme-panel"] { width: calc(100vw - 32px); min-width: 0; }
