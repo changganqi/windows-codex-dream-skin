@@ -31,9 +31,10 @@
 
 ## 现在有什么
 
-- HeiGe 风格主题中心，顶部圆形按钮可直接切换主题或导入图片。
+- HeiGe 风格主题中心，顶部圆形按钮可直接切换主题或导入图片；上传后会自动取色、选择浅色/深色外观，并生成持久缩略图。
 - 主题选择写入 `%LOCALAPPDATA%\CodexDreamSkin\selected-theme.json`，由 Fei watcher 在页面重载后重新注入。
-- 主题中心底部的“展示拍立得”按钮只控制右下角 Miku 拍立得卡片；状态由 watcher 写入 `%LOCALAPPDATA%\CodexDreamSkin\ui-preferences.json`，切换主题、重启 Codex 和升级引擎都会保留。
+- 每个自定义主题拥有独立目录，原图、缩略图和可选拍立得都保存在 `%LOCALAPPDATA%\CodexDreamSkin\themes`，不会引用用户原始图片路径，也不会继承上一主题的 logo 或拍立得。
+- 主题中心底部的“展示拍立得”只控制当前主题自己的拍立得；当前主题没有拍立得时开关会禁用，“我的主题”可在旁边添加或更换。显示状态由 watcher 写入 `%LOCALAPPDATA%\CodexDreamSkin\ui-preferences.json`。
 - 桌面主入口叫 `Codex.lnk`，使用官方 Codex 图标，并通过 `wscript.exe` 隐藏控制台。图标缓存位于 `%LOCALAPPDATA%\CodexDreamSkin\codex.ico`。
 - Miku Future 宠物单独安装。换肤不会偷偷改宠物设置。
 
@@ -70,7 +71,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 
 打开桌面的 `Codex`。如果官方 Codex 已经在无调试端口的状态下运行，这个“Codex + skin”入口会正常重启一次应用；隐藏启动的输出写入 `%LOCALAPPDATA%\CodexDreamSkin\launch.log`，失败时才弹出提示。
 
-进入 Codex 后，点击顶部 Miku 圆形按钮打开主题中心。选中的主题由 watcher 保存，不需要点击 HeiGe 的“皮肤常驻”。自定义背景图也从这个面板导入。点击“不使用主题”可持久切回 Codex 原生界面，同时保留顶部主题中心入口；右键主题卡片可二次确认删除。“我的主题”会从受管目录删除，内置主题则写入升级安全的隐藏清单，不修改发布文件。
+进入 Codex 后，点击顶部 Miku 圆形按钮打开主题中心。选中的主题由 watcher 保存，不需要点击 HeiGe 的“皮肤常驻”。自定义背景图也从这个面板导入：每次上传会创建一个独立的“我的主题”，自动生成配色、浅深外观和卡片缩略图，源图片之后可以移动或删除。点击“不使用主题”可持久切回 Codex 原生界面，同时保留顶部主题中心入口；右键主题卡片可二次确认删除。“我的主题”会从受管目录删除，内置主题则写入升级安全的隐藏清单，不修改发布文件。
 
 Store 更新 Codex 后仍使用同一个桌面快捷方式。启动器每次都通过 `Get-AppxPackage OpenAI.Codex` 选择当前注册的最高版本，并刷新固定路径下的官方图标；代码里没有写死 `WindowsApps\OpenAI.Codex_26.x...` 目录。
 

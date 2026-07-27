@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.4 - 2026-07-27
+
+- Restored the native new-task layout after Codex changed its private home-page nesting; the gray Codex home icon remains hidden without structural `first-child` selectors.
+- Updated startup verification to use the stable home-shell state, preventing a successful injection from being rolled back when newer Codex builds omit the old nested hero wrapper.
+- Made every uploaded image a separate durable theme under `%LOCALAPPDATA%\CodexDreamSkin\themes`, with an atomically stored artwork file and compact persistent preview.
+- Added HeiGe-style automatic palette extraction, light/dark appearance selection, focus point, and safe-area metadata for uploaded themes.
+- Stopped custom themes from inheriting another theme's logo or polaroid, and migrated the legacy `custom-upload` slot away from copied Miku branding.
+- Disabled the polaroid switch when the current theme has no polaroid and added per-theme add/replace support for saved themes.
+
 ## 1.0.3 - 2026-07-19
 
 - Replaced the slow `Get-NetTCPConnection` CDP ownership probe with the native Windows IP Helper API for fast IPv4/IPv6 listener validation.

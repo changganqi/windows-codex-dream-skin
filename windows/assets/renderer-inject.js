@@ -66,6 +66,12 @@
     aspect: 1.6,
     luma: .32,
     safeArea: "center",
+    palette: {
+      accent: "#6c838e",
+      secondary: "#a8b4ba",
+      surface: "#171b1d",
+      text: "#f5f7f8",
+    },
   };
 
   const normalizeConfig = (value) => {
@@ -139,19 +145,21 @@
   const existingStyle = document.getElementById(STYLE_ID);
   if (existingStyle) {
     existingStyle.textContent = cssText;
-    existingStyle.dataset.dreamVersion = "3";
+    existingStyle.dataset.dreamVersion = "4";
   }
 
-  const analyzeArt = () => new Promise((resolve) => {
-    if (typeof Image !== "function") {
-      resolve(defaultProfile);
-      return;
-    }
-    const image = new Image();
-    image.onload = () => {
-      try {
-        const width = 48;
-        const height = Math.max(12, Math.round(width * image.naturalHeight / image.naturalWidth));
+  const hexColor = (red, green, blue) => `#${[red, green, blue]
+    .map((value) => Math.round(clamp(value, 0, 255)).toString(16).padStart(2, "0"))
+    .join("")}`;
+  const mixColor = (first, second, amount) => first.map((value, index) =>
+    value + (second[index] - value) * amount);
+
+  const analyzeDecodedImage = (image) => {
+        const sourceWidth = Math.max(1, Number(image.naturalWidth || image.width || 1));
+        const sourceHeight = Math.max(1, Number(image.naturalHeight || image.height || 1));
+        const sampleScale = Math.min(1, 48 / sourceWidth, 48 / sourceHeight);
+        const width = Math.max(1, Math.floor(sourceWidth * sampleScale));
+        const height = Math.max(1, Math.floor(sourceHeight * sampleScale));
         const canvas = document.createElement("canvas");
         canvas.width = width;
         canvas.height = height;
@@ -218,6 +226,7 @@
         let focusY = 0;
         let accentWeight = 0;
         let accent = [0, 0, 0];
+        const colorBuckets = new Map();
         for (const sample of samples) {
           const x = sample.index % width;
           const y = Math.floor(sample.index / width);
@@ -239,29 +248,135 @@
           accent[1] += sample.green * weight;
           accent[2] += sample.blue * weight;
           accentWeight += weight;
+          if (saturation >= .18 && sample.light >= .095 && sample.light <= .96) {
+            const delta = max - min || 1;
+            let hue = max === sample.red
+              ? (sample.green - sample.blue) / delta + (sample.green < sample.blue ? 6 : 0)
+              : max === sample.green
+                ? (sample.blue - sample.red) / delta + 2
+                : (sample.red - sample.green) / delta + 4;
+            hue *= 60;
+            const bucketId = (Math.round(hue / 60) % 6) * 2 + (saturation > .55 ? 1 : 0);
+            const bucket = colorBuckets.get(bucketId) ?? { weight: 0, red: 0, green: 0, blue: 0, hue };
+            const bucketWeight = saturation ** 2;
+            bucket.weight += bucketWeight;
+            bucket.red += sample.red * bucketWeight;
+            bucket.green += sample.green * bucketWeight;
+            bucket.blue += sample.blue * bucketWeight;
+            colorBuckets.set(bucketId, bucket);
+          }
         }
         const resolvedAccent = accentWeight > 1
           ? accent.map((channel) => Math.round(channel / accentWeight))
           : average.map((channel) => Math.round(channel));
+        const rankedColors = [...colorBuckets.values()]
+          .filter((entry) => entry.weight > 0)
+          .sort((first, second) => second.weight - first.weight)
+          .map((entry) => ({
+            rgb: [entry.red / entry.weight, entry.green / entry.weight, entry.blue / entry.weight],
+            hue: entry.hue,
+          }));
+        const primary = rankedColors[0]?.rgb ?? resolvedAccent;
+        const primaryHue = rankedColors[0]?.hue ?? 0;
+        const hueDistance = (first, second) => {
+          const distance = Math.abs(first - second) % 360;
+          return Math.min(distance, 360 - distance);
+        };
+        const secondary = rankedColors.find((entry) => hueDistance(entry.hue, primaryHue) > 50)?.rgb
+          ?? mixColor(primary, [255, 255, 255], .35);
+        const lightAppearance = averageBrightness >= .58;
+        const surface = lightAppearance
+          ? mixColor(primary, [252, 252, 255], .92)
+          : mixColor(primary, [12, 12, 18], .86);
+        const text = lightAppearance
+          ? mixColor(primary, [16, 24, 40], .82)
+          : mixColor(primary, [244, 246, 252], .85);
         let resolvedFocusX = clamp(focusX / focusWeight);
         if (safeArea === "left") resolvedFocusX = Math.max(.64, resolvedFocusX);
         if (safeArea === "right") resolvedFocusX = Math.min(.36, resolvedFocusX);
-        resolve({
-          appearance: averageBrightness >= .58 ? "light" : "dark",
-          accent: resolvedAccent,
+        return {
+          appearance: lightAppearance ? "light" : "dark",
+          accent: primary.map((channel) => Math.round(channel)),
           focusX: resolvedFocusX,
           focusY: clamp(focusY / focusWeight),
           aspect: image.naturalWidth / Math.max(1, image.naturalHeight),
           luma: clamp(averageBrightness),
           safeArea,
-        });
-      } catch {
-        resolve(defaultProfile);
-      }
-    };
-    image.onerror = () => resolve(defaultProfile);
-    image.src = artUrl;
+          palette: {
+            accent: hexColor(...primary),
+            secondary: hexColor(...secondary),
+            surface: hexColor(...surface),
+            text: hexColor(...text),
+          },
+        };
+  };
+
+  const decodeBrowserImage = (source) => new Promise((resolve, reject) => {
+    if (typeof Image !== "function" || !source) {
+      reject(new Error("当前 Codex renderer 无法解码图片"));
+      return;
+    }
+    const image = new Image();
+    const timeout = setTimeout(() => reject(new Error("图片解码超时，请重试")), 15000);
+    image.onload = () => { clearTimeout(timeout); resolve(image); };
+    image.onerror = () => { clearTimeout(timeout); reject(new Error("图片解码失败")); };
+    image.src = source;
   });
+
+  const createThemePreview = (image) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 420;
+    canvas.height = 240;
+    const context = canvas.getContext?.("2d");
+    if (!context || typeof context.drawImage !== "function" || typeof canvas.toDataURL !== "function") {
+      throw new Error("当前 Codex renderer 无法生成主题缩略图");
+    }
+    const sourceWidth = Math.max(1, image.naturalWidth || image.width || 1);
+    const sourceHeight = Math.max(1, image.naturalHeight || image.height || 1);
+    const scale = Math.max(canvas.width / sourceWidth, canvas.height / sourceHeight);
+    const drawWidth = sourceWidth * scale;
+    const drawHeight = sourceHeight * scale;
+    context.drawImage(image, (canvas.width - drawWidth) / 2, (canvas.height - drawHeight) / 2, drawWidth, drawHeight);
+    const preview = canvas.toDataURL("image/webp", .8);
+    if (typeof preview !== "string" || !/^data:image\/(?:webp|png|jpeg);base64,/i.test(preview)) {
+      throw new Error("主题缩略图编码失败");
+    }
+    return preview;
+  };
+
+  const prepareUploadedArt = async (source) => {
+    const image = await decodeBrowserImage(source);
+    return { profile: analyzeDecodedImage(image), previewDataUrl: createThemePreview(image) };
+  };
+
+  const analyzeArt = async () => {
+    try { return analyzeDecodedImage(await decodeBrowserImage(artUrl)); }
+    catch { return defaultProfile; }
+  };
+  let previewMigrationStarted = false;
+  const persistCurrentPreviewIfNeeded = async (analysis) => {
+    if (previewMigrationStarted || currentSource !== "saved" || currentTheme.preview ||
+        !currentArtDataUrl || !currentTheme.id || !analysis?.palette) return;
+    previewMigrationStarted = true;
+    try {
+      const previewDataUrl = createThemePreview(await decodeBrowserImage(currentArtDataUrl));
+      if (window[THEME_REQUEST_KEY]) { previewMigrationStarted = false; return; }
+      currentTheme.preview = "pending";
+      requestTheme({
+        kind: "upgrade-saved-theme",
+        themeId: String(currentTheme.id),
+        previewDataUrl,
+        appearance: analysis.appearance,
+        art: {
+          focusX: analysis.focusX,
+          focusY: analysis.focusY,
+          safeArea: analysis.safeArea,
+          taskMode: "auto",
+        },
+        palette: analysis.palette,
+      });
+    } catch {}
+  };
 
   const detectShellAppearance = () => {
     const root = document.documentElement;
@@ -606,27 +721,45 @@
     const builtInHeading = document.createElement("h3");
     builtInHeading.dataset.dreamRole = "section-heading";
     builtInHeading.textContent = "内置主题";
+    const savedSection = document.createElement("section");
+    savedSection.dataset.dreamRole = "saved-theme-section";
+    const savedHeading = document.createElement("h3");
+    savedHeading.dataset.dreamRole = "section-heading";
+    savedHeading.textContent = "我的主题";
+    const savedGrid = document.createElement("div");
+    savedGrid.dataset.dreamRole = "saved-theme-grid";
+    savedSection.appendChild(savedHeading);
+    savedSection.appendChild(savedGrid);
     const grid = document.createElement("div");
     grid.dataset.dreamRole = "theme-grid";
-    for (const node of [currentHero, quickActions, builtInHeading, grid]) scroll.appendChild(node);
+    for (const node of [currentHero, quickActions, savedSection, builtInHeading, grid]) scroll.appendChild(node);
     const footer = document.createElement("footer");
     footer.dataset.dreamRole = "theme-footer";
     const polaroidControl = document.createElement("div");
     polaroidControl.dataset.dreamRole = "polaroid-control";
     const polaroidLabel = document.createElement("span");
-    polaroidLabel.textContent = "展示拍立得";
+    const polaroidAvailable = Boolean(branding.polaroid);
+    polaroidControl.dataset.available = String(polaroidAvailable);
+    polaroidLabel.textContent = polaroidAvailable ? "展示拍立得" : "当前主题无拍立得";
     const polaroidToggle = document.createElement("button");
     polaroidToggle.type = "button";
     polaroidToggle.dataset.dreamRole = "polaroid-toggle";
     polaroidToggle.setAttribute("role", "switch");
-    polaroidToggle.setAttribute("aria-checked", String(showPolaroid));
+    polaroidToggle.setAttribute("aria-checked", String(showPolaroid && polaroidAvailable));
     polaroidToggle.setAttribute("aria-label", "展示拍立得");
+    polaroidToggle.disabled = !polaroidAvailable;
+    const polaroidUpload = document.createElement("button");
+    polaroidUpload.type = "button";
+    polaroidUpload.dataset.dreamRole = "polaroid-upload";
+    polaroidUpload.textContent = polaroidAvailable ? "更换" : "添加";
+    polaroidUpload.hidden = currentSource !== "saved";
     const polaroidKnob = document.createElement("span");
     polaroidKnob.dataset.dreamRole = "polaroid-toggle-knob";
     polaroidKnob.setAttribute("aria-hidden", "true");
     polaroidToggle.appendChild(polaroidKnob);
     polaroidControl.appendChild(polaroidLabel);
     polaroidControl.appendChild(polaroidToggle);
+    polaroidControl.appendChild(polaroidUpload);
     const status = document.createElement("div");
     status.dataset.dreamRole = "status";
     status.dataset.state = "saved";
@@ -639,6 +772,10 @@
     picker.type = "file";
     picker.accept = "image/png,image/jpeg,image/webp";
     picker.hidden = true;
+    const polaroidPicker = document.createElement("input");
+    polaroidPicker.type = "file";
+    polaroidPicker.accept = "image/png,image/jpeg,image/webp";
+    polaroidPicker.hidden = true;
     const contextMenu = document.createElement("div");
     contextMenu.dataset.dreamRole = "theme-context-menu";
     contextMenu.setAttribute("role", "menu");
@@ -654,6 +791,7 @@
     root.appendChild(trigger);
     root.appendChild(backdrop);
     root.appendChild(picker);
+    root.appendChild(polaroidPicker);
     root.appendChild(contextMenu);
     document.body.appendChild(root);
     themeCenter = root;
@@ -717,9 +855,10 @@
       setThemeCenterStatus("正在由 watcher 保存原生模式…", "pending");
     });
     const paintPolaroidToggle = () => {
-      polaroidToggle.setAttribute("aria-checked", String(showPolaroid));
+      polaroidToggle.setAttribute("aria-checked", String(showPolaroid && polaroidAvailable));
     };
     const togglePolaroid = () => {
+      if (!polaroidAvailable) return;
       showPolaroid = !showPolaroid;
       paintPolaroidToggle();
       ensure();
@@ -731,6 +870,28 @@
       if (event.key !== "Enter" && event.key !== " ") return;
       event.preventDefault();
       togglePolaroid();
+    });
+    polaroidUpload.addEventListener("click", () => polaroidPicker.click());
+    polaroidPicker.addEventListener("change", () => {
+      const file = polaroidPicker.files?.[0];
+      polaroidPicker.value = "";
+      if (!file) return;
+      if (file.size > 4 * 1024 * 1024) {
+        setThemeCenterStatus("拍立得图片不能超过 4 MB", "error");
+        return;
+      }
+      void readUploadDataUrl(file).then(async (dataUrl) => {
+        const themeId = String(currentTheme.id || "");
+        if (currentSource !== "saved" || !themeId) throw new Error("只有“我的主题”可以添加拍立得");
+        const entry = {
+          ...currentEntry(),
+          branding: { ...branding, polaroid: dataUrl },
+        };
+        await replaceThemeLocally(entry);
+        requestTheme({ kind: "set-theme-polaroid", themeId, imageDataUrl: dataUrl });
+        setThemeCenterStatus("正在由 watcher 保存该主题的拍立得…", "pending");
+        close();
+      }).catch((error) => setThemeCenterStatus(error.message, "error"));
     });
     deleteThemeButton.addEventListener("click", () => {
       if (!contextEntry || contextEntry.id === NATIVE_THEME_ID ||
@@ -755,27 +916,40 @@
       picker.value = "";
       if (!file) return;
       void readUploadDataUrl(file).then(async (dataUrl) => {
-        const inheritThemeId = String(currentTheme.id || "custom");
+        setThemeCenterStatus("正在分析图片颜色和明暗外观…", "pending");
+        const prepared = await prepareUploadedArt(dataUrl);
+        const pendingId = `custom-pending-${Date.now().toString(36)}`;
         const entry = {
-          id: "custom-upload",
+          id: pendingId,
           name: file.name.replace(/\.[^.]+$/, "").slice(0, 80) || "自定义图片",
           theme: {
-            ...currentTheme,
-            id: "custom-upload",
+            id: pendingId,
             name: file.name.replace(/\.[^.]+$/, "").slice(0, 80) || "自定义图片",
-            art: { focusX: null, focusY: null, safeArea: "auto", taskMode: "auto" },
+            appearance: prepared.profile.appearance,
+            art: {
+              focusX: prepared.profile.focusX,
+              focusY: prepared.profile.focusY,
+              safeArea: prepared.profile.safeArea,
+              taskMode: "auto",
+            },
+            palette: prepared.profile.palette,
+            branding: {},
           },
           artDataUrl: dataUrl,
-          branding,
+          branding: {},
+          source: "saved",
         };
         await replaceThemeLocally(entry);
         requestTheme({
           kind: "custom-image",
           name: entry.name,
-          inheritThemeId,
           imageDataUrl: dataUrl,
+          previewDataUrl: prepared.previewDataUrl,
+          appearance: prepared.profile.appearance,
+          art: entry.theme.art,
+          palette: prepared.profile.palette,
         });
-        setThemeCenterStatus("正在由 watcher 保存自定义图片…", "pending");
+        setThemeCenterStatus("已自动取色，正在由 watcher 保存主题…", "pending");
         close();
       }).catch((error) => setThemeCenterStatus(error.message, "error"));
     });
@@ -783,7 +957,8 @@
       ? [...catalog]
       : [currentEntry(), ...catalog.filter((entry) => entry.id !== currentTheme.id)];
     for (const entry of entries) {
-      grid.appendChild(buildThemeCard(entry, async (picked) => {
+      const targetGrid = entry.source === "saved" ? savedGrid : grid;
+      targetGrid.appendChild(buildThemeCard(entry, async (picked) => {
         if (picked.id === currentTheme.id) { close(); return; }
         close();
         const applied = await replaceThemeLocally(picked);
@@ -792,6 +967,7 @@
         setThemeCenterStatus("正在由 watcher 保存选择…", "pending");
       }, openContextMenu, String(currentTheme.id || "")));
     }
+    savedSection.hidden = savedGrid.children.length === 0;
     themeCenterDisposers.push(() => {
       close();
       document.removeEventListener("keydown", onKeyDown);
@@ -825,9 +1001,9 @@
       style.id = STYLE_ID;
       (document.head || root).appendChild(style);
     }
-    if (style.dataset.dreamVersion !== "3") {
+    if (style.dataset.dreamVersion !== "4") {
       style.textContent = cssText;
-      style.dataset.dreamVersion = "3";
+      style.dataset.dreamVersion = "4";
     }
 
     if (nativeMode) {
@@ -839,17 +1015,23 @@
     root.classList.add("codex-dream-skin");
     applyProfile(root);
 
-    const home = document.querySelector('[role="main"]:has([data-testid="home-icon"])');
+    const homeMarker = shellMain.querySelector?.(
+      '[data-testid="home-icon"], [data-feature="game-source"], .group\\/home-suggestions',
+    ) ?? document.querySelector(
+      'main.main-surface [data-testid="home-icon"], main.main-surface [data-feature="game-source"], main.main-surface .group\\/home-suggestions',
+    );
+    const roleHome = document.querySelector('[role="main"]:has([data-testid="home-icon"], [data-feature="game-source"], .group\\/home-suggestions)');
+    const home = roleHome ?? homeMarker?.closest?.('[role="main"]') ?? null;
     for (const candidate of document.querySelectorAll('[role="main"]')) {
-      candidate.classList.toggle("dream-home", candidate === home);
-      candidate.classList.toggle("dream-task", candidate !== home);
+      candidate.classList.toggle("dream-home", Boolean(homeMarker) && candidate === home);
+      candidate.classList.toggle("dream-task", !homeMarker);
     }
-    const utilityBars = new Set(home ? home.querySelectorAll('[class*="_homeUtilityBar_"]') : []);
+    const utilityBars = new Set(homeMarker ? shellMain.querySelectorAll('[class*="_homeUtilityBar_"]') : []);
     for (const candidate of document.querySelectorAll(`.${HOME_UTILITY_CLASS}`)) {
       if (!utilityBars.has(candidate)) candidate.classList.remove(HOME_UTILITY_CLASS);
     }
     for (const candidate of utilityBars) candidate.classList.add(HOME_UTILITY_CLASS);
-    shellMain.classList.toggle("dream-home-shell", Boolean(home));
+    shellMain.classList.toggle("dream-home-shell", Boolean(homeMarker));
 
     let chrome = document.getElementById(CHROME_ID);
     if (!chrome || chrome.parentElement !== document.body) {
@@ -859,7 +1041,7 @@
       chrome.setAttribute("aria-hidden", "true");
       document.body.appendChild(chrome);
     }
-    chrome.classList.toggle("dream-home-shell", Boolean(home));
+    chrome.classList.toggle("dream-home-shell", Boolean(homeMarker));
     ensureThemeCenter();
     const polaroid = document.getElementById(POLAROID_ID);
     if (showPolaroid && brandingUrls.polaroid) {
@@ -908,7 +1090,7 @@
   const ackTimer = setInterval(refreshThemeAck, 300);
   window[STATE_KEY] = {
     ensure, cleanup, disposeThemeCenter: removeThemeCenter, observer, timer, ackTimer, scheduler,
-    artUrl, brandingUrls, profile, config, installToken, version: "1.3.0",
+    artUrl, brandingUrls, profile, config, installToken, version: "1.4.0",
   };
   ensure();
   analyzeArt().then((result) => {
@@ -917,6 +1099,7 @@
     profile = result;
     state.profile = result;
     ensure();
+    void persistCurrentPreviewIfNeeded(result);
   });
-  return { installed: true, version: "1.3.0", adaptive: true };
+  return { installed: true, version: "1.4.0", adaptive: true };
 })(__DREAM_CSS_JSON__, __DREAM_ART_JSON__, __DREAM_THEME_JSON__, __DREAM_BRANDING_JSON__, __DREAM_CATALOG_JSON__, __DREAM_CURRENT_SOURCE_JSON__, __DREAM_UI_PREFERENCES_JSON__)

@@ -9,6 +9,22 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const injectorPath = path.resolve(here, "../scripts/injector.mjs");
 const source = await fs.readFile(injectorPath, "utf8");
 
+assert.doesNotMatch(
+  source,
+  /home\?\.firstElementChild\?\.firstElementChild\?\.firstElementChild/,
+  "Renderer verification must not depend on Codex's private home-page nesting.",
+);
+assert.match(
+  source,
+  /classList\.contains\('dream-home-shell'\)/,
+  "Renderer verification must use the stable home-shell state.",
+);
+assert.match(
+  source,
+  /result\.composer\.y \+ result\.composer\.height <= result\.viewport\.height/,
+  "Renderer verification must reject a new-task composer pushed below the viewport.",
+);
+
 function createFixture() {
   const observers = [];
   const timers = new Map();

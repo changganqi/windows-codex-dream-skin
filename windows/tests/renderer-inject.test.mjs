@@ -23,6 +23,10 @@ assert.doesNotMatch(
   /main\.main-surface\s*>\s*header\.app-header-tint\s*\{[^}]*\b(?:position|z-index)\s*:/,
   "The skin must preserve Codex's native fixed header so the side-panel toggle remains reachable.",
 );
+assert.doesNotMatch(css, /\.dream-home\s*>\s*div:first-child/,
+  "Home layout must not depend on Codex's private first-child nesting.");
+assert.match(css, /main\.main-surface\.dream-home-shell \[data-testid="home-icon"\]/,
+  "The gray Codex home icon must remain hidden through a stable shell state.");
 
 function createFixture({
   shellPresent,
@@ -97,6 +101,14 @@ function createFixture({
   };
   const shellMain = {
     classList: makeClassList(),
+    querySelector(selector) {
+      if (homePresent && /home-icon|game-source|home-suggestions/.test(selector)) return homeMarker;
+      return null;
+    },
+    querySelectorAll(selector) {
+      if (selector === '[class*="_homeUtilityBar_"]' && homePresent && utilityPresent) return [utilityNode];
+      return [];
+    },
     getBoundingClientRect() {
       return { left: 290, top: 36, width: 990, height: 784 };
     },
@@ -110,6 +122,9 @@ function createFixture({
       if (selector === '[class*="_homeUtilityBar_"]' && utilityPresent) return [utilityNode];
       return [];
     },
+  };
+  const homeMarker = {
+    closest(selector) { return selector === '[role="main"]' ? routeMain : null; },
   };
   const staleHome = { classList: makeClassList(new Set(["dream-home"])) };
   const staleShell = { classList: makeClassList(new Set(["dream-home-shell"])) };
@@ -178,8 +193,12 @@ function createFixture({
     querySelector(selector) {
       if (selector === "main.main-surface") return hasShell ? shellMain : null;
       if (selector === "aside.app-shell-left-panel") return hasShell ? {} : null;
-      if (selector === '[role="main"]:has([data-testid="home-icon"])') {
+      if (selector === '[role="main"]:has([data-testid="home-icon"])' ||
+          selector.startsWith('[role="main"]:has(')) {
         return hasShell && homePresent ? routeMain : null;
+      }
+      if (selector.startsWith('main.main-surface [data-testid="home-icon"]')) {
+        return hasShell && homePresent ? homeMarker : null;
       }
       return null;
     },
@@ -352,7 +371,7 @@ const analyzed = createFixture({
   analysisFixture: { naturalWidth: 1200, naturalHeight: 400, pixels: analysisPixels },
 });
 vm.runInNewContext(payload, analyzed.context);
-await Promise.resolve();
+await new Promise((resolve) => setImmediate(resolve));
 assert.equal(analyzed.rootClasses.has("dream-theme-dark"), true);
 assert.equal(analyzed.rootClasses.has("dream-theme-light"), false);
 assert.equal(analyzed.rootClasses.has("dream-art-wide"), true);
@@ -365,7 +384,7 @@ const standardArt = createFixture({
   analysisFixture: { naturalWidth: 800, naturalHeight: 800, pixels: analysisPixels },
 });
 vm.runInNewContext(payload, standardArt.context);
-await Promise.resolve();
+await new Promise((resolve) => setImmediate(resolve));
 assert.equal(standardArt.rootClasses.has("dream-art-standard"), true);
 assert.equal(standardArt.rootClasses.has("dream-task-ambient"), true);
 assert.equal(standardArt.rootClasses.has("dream-task-banner"), false);
@@ -375,7 +394,7 @@ const mediumWide = createFixture({
   analysisFixture: { naturalWidth: 2100, naturalHeight: 1000, pixels: analysisPixels },
 });
 vm.runInNewContext(payload, mediumWide.context);
-await Promise.resolve();
+await new Promise((resolve) => setImmediate(resolve));
 assert.equal(mediumWide.rootClasses.has("dream-art-wide"), true);
 assert.equal(mediumWide.rootClasses.has("dream-task-ambient"), true);
 assert.equal(mediumWide.rootClasses.has("dream-task-banner"), false);
@@ -408,12 +427,19 @@ assert.equal(metadataWide.rootClasses.has("dream-art-wide"), true);
 assert.equal(metadataWide.rootClasses.has("dream-art-standard"), false);
 
 const menuFixture = createFixture({ shellPresent: true });
-vm.runInNewContext(buildPayload({}, {}, [{
+vm.runInNewContext(buildPayload({}, { polaroid: "data:image/png;base64,AA==" }, [{
   id: "miku-488137",
   name: "Miku 488137",
   theme: { id: "miku-488137", name: "Miku 488137", appearance: "light", art: {}, palette: {} },
   artDataUrl: "data:image/png;base64,AA==",
   branding: {},
+}, {
+  id: "custom-persisted",
+  name: "我的主题",
+  theme: { id: "custom-persisted", name: "我的主题", appearance: "dark", art: {}, palette: {} },
+  artDataUrl: "data:image/webp;base64,AA==",
+  branding: {},
+  source: "saved",
 }]), menuFixture.context);
 const menuRoot = menuFixture.nodes.get("codex-dream-theme-center");
 assert.ok(menuRoot, "theme center should be mounted in the document body");
@@ -423,6 +449,9 @@ const backdrop = menuRoot.children[1];
 assert.equal(backdrop.hidden, false);
 const grid = backdrop.querySelector('[data-dream-role="theme-grid"]');
 assert.equal(grid.children.length, 2);
+const savedGrid = backdrop.querySelector('[data-dream-role="saved-theme-grid"]');
+assert.equal(savedGrid.children.length, 1, "persisted uploads must render in My Themes instead of the built-in grid");
+assert.match(savedGrid.children[0].children[0].style.backgroundImage, /data:image\/webp/);
 const polaroidToggle = backdrop.querySelector('[data-dream-role="polaroid-toggle"]');
 assert.ok(polaroidToggle, "theme center should expose the polaroid visibility toggle");
 assert.equal(polaroidToggle.role, "switch");
@@ -432,10 +461,22 @@ assert.equal(polaroidToggle["aria-checked"], "false");
 assert.equal(menuFixture.context.window.__CODEX_DREAM_SKIN_THEME_REQUEST__.kind, "set-polaroid-visibility");
 assert.equal(menuFixture.context.window.__CODEX_DREAM_SKIN_THEME_REQUEST__.visible, false);
 grid.children[grid.children.length - 1].click();
-await Promise.resolve();
+await new Promise((resolve) => setImmediate(resolve));
 assert.equal(menuFixture.context.window.__CODEX_DREAM_SKIN_THEME_REQUEST__.kind, "select-theme");
 assert.equal(menuFixture.context.window.__CODEX_DREAM_SKIN_THEME_REQUEST__.themeId, "miku-488137");
-assert.equal(menuFixture.rootStyles.get("--dream-art"), 'url("blob:fixture-2")');
+assert.equal(menuFixture.rootStyles.get("--dream-art"), 'url("blob:fixture-3")');
+
+const noPolaroidMenu = createFixture({ shellPresent: true });
+vm.runInNewContext(buildPayload({}, {}, [], "saved"), noPolaroidMenu.context);
+const noPolaroidBackdrop = noPolaroidMenu.nodes.get("codex-dream-theme-center").children[1];
+const unavailablePolaroidToggle = noPolaroidBackdrop.querySelector('[data-dream-role="polaroid-toggle"]');
+const polaroidUpload = noPolaroidBackdrop.querySelector('[data-dream-role="polaroid-upload"]');
+assert.equal(unavailablePolaroidToggle.disabled, true);
+assert.equal(unavailablePolaroidToggle["aria-checked"], "false");
+assert.equal(polaroidUpload.hidden, false, "My Themes without a polaroid must expose an add control");
+unavailablePolaroidToggle.click();
+assert.equal(noPolaroidMenu.context.window.__CODEX_DREAM_SKIN_THEME_REQUEST__, undefined,
+  "a theme without its own polaroid must not enable the stale global toggle");
 
 const hiddenPolaroid = createFixture({ shellPresent: true });
 vm.runInNewContext(buildPayload({}, { polaroid: "data:image/png;base64,AA==" }, [], "built-in", { showPolaroid: false }), hiddenPolaroid.context);

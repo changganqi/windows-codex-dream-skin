@@ -7,10 +7,11 @@ import { readImageMetadata } from "./image-metadata.mjs";
 const scriptPath = fileURLToPath(import.meta.url);
 const here = path.dirname(scriptPath);
 const root = path.resolve(here, "..");
-const SKIN_VERSION = "1.3.0";
+const SKIN_VERSION = "1.4.0";
 const MAX_ART_BYTES = 16 * 1024 * 1024;
 const MAX_BRANDING_BYTES = 4 * 1024 * 1024;
 const MAX_CUSTOM_BYTES = 8 * 1024 * 1024;
+const MAX_PREVIEW_BYTES = 1024 * 1024;
 const MAX_CATALOG_THEMES = 24;
 const MAX_CATALOG_INLINE_BYTES = 4 * 1024 * 1024;
 const MAX_CATALOG_BYTES = 12 * 1024 * 1024;
@@ -413,6 +414,10 @@ async function loadTheme(themeDir) {
     palette: {},
     branding: {},
   };
+  const preview = raw.preview ?? null;
+  if (preview !== null && preview !== undefined && preview !== "") {
+    theme.preview = normalizedText(preview, "preview", null, 240);
+  }
   for (const key of ["accent", "secondary", "surface", "text"]) {
     if (typeof palette[key] === "string" && palette[key].trim()) {
       const value = palette[key].trim();
@@ -451,11 +456,15 @@ async function loadTheme(themeDir) {
   for (const key of ["logo", "polaroid"]) {
     if (theme.branding[key]) assets[key] = await loadThemeAsset(realThemeDir, theme.branding[key], `branding.${key}`, MAX_BRANDING_BYTES);
   }
+  const previewAsset = theme.preview
+    ? await loadThemeAsset(realThemeDir, theme.preview, "preview", MAX_PREVIEW_BYTES)
+    : null;
   const fingerprint = createHash("sha256")
     .update(themeText, "utf8")
     .update("\0")
     .update(imageBytes)
     .update(JSON.stringify(Object.fromEntries(Object.entries(assets).map(([key, value]) => [key, value?.bytes ?? null]))))
+    .update(previewAsset?.bytes ?? Buffer.alloc(0))
     .digest("hex");
   theme.branding = Object.fromEntries(Object.entries(assets).map(([key, value]) => [key, value.relative]));
   return {
@@ -465,6 +474,7 @@ async function loadTheme(themeDir) {
     imageBytes,
     imageDataUrl: dataUrlForBytes(imageBytes, extension),
     assets,
+    previewAsset,
     fingerprint,
     sourceStamp: `${themeStat.size}:${themeStat.mtimeMs}:${imageStat.size}:${imageStat.mtimeMs}`,
   };
@@ -567,6 +577,38 @@ async function writeHiddenThemeIds(themeDir, themeIds) {
   });
 }
 
+async function migrateLegacyRendererCustomTheme(savedRoot) {
+  const legacyDirectory = path.join(savedRoot, "renderer-custom");
+  const manifestPath = path.join(legacyDirectory, "theme.json");
+  try {
+    const [realSavedRoot, realLegacyDirectory, realManifestPath] = await Promise.all([
+      fs.realpath(savedRoot),
+      fs.realpath(legacyDirectory),
+      fs.realpath(manifestPath),
+    ]);
+    if (path.relative(realSavedRoot, realLegacyDirectory) !== "renderer-custom" ||
+        path.dirname(realManifestPath).toLowerCase() !== realLegacyDirectory.toLowerCase()) return;
+    const raw = JSON.parse(await fs.readFile(realManifestPath, "utf8"));
+    if (raw?.id !== "custom-upload") return;
+    const legacyAssets = [
+      raw?.branding?.logo ?? raw?.logo,
+      raw?.branding?.polaroid ?? raw?.polaroid,
+    ].filter((value) => typeof value === "string" && path.basename(value) === value);
+    if (!legacyAssets.length && raw.branding && Object.keys(raw.branding).length === 0) return;
+    raw.branding = {};
+    delete raw.logo;
+    delete raw.polaroid;
+    await writeJsonAtomically(realManifestPath, raw);
+    for (const relative of legacyAssets) {
+      if (/^(?:logo|polaroid)\.(?:png|jpe?g|webp)$/i.test(relative)) {
+        await fs.rm(path.join(realLegacyDirectory, relative), { force: true }).catch(() => {});
+      }
+    }
+  } catch (error) {
+    if (error?.code !== "ENOENT" && !(error instanceof SyntaxError)) throw error;
+  }
+}
+
 async function loadThemeCatalog(themeDir) {
   const hiddenThemeIds = await readHiddenThemeIds(themeDir);
   const directories = [];
@@ -588,6 +630,7 @@ async function loadThemeCatalog(themeDir) {
   }
   const savedRoot = path.join(themeStateRoot(themeDir), "themes");
   try {
+    await migrateLegacyRendererCustomTheme(savedRoot);
     for (const item of await fs.readdir(savedRoot, { withFileTypes: true })) {
       if (item.isDirectory()) addDirectory(path.join(savedRoot, item.name), "saved");
     }
@@ -620,7 +663,9 @@ function brandingDataFor(loadedTheme) {
 function catalogPayloadFor(catalog, currentTheme) {
   const entries = [];
   let usedBytes = 0;
-  for (const entry of catalog.entries.values()) {
+  const orderedEntries = [...catalog.entries.values()].sort((first, second) =>
+    Number(second.source === "saved") - Number(first.source === "saved"));
+  for (const entry of orderedEntries) {
     if (entry.theme.id === currentTheme.theme.id) continue;
     const item = {
       id: entry.theme.id,
@@ -630,10 +675,12 @@ function catalogPayloadFor(catalog, currentTheme) {
       artDataUrl: null,
       branding: brandingDataFor(entry),
     };
-    if (entry.imageBytes.length <= MAX_CATALOG_INLINE_BYTES &&
-        usedBytes + entry.imageBytes.length <= MAX_CATALOG_BYTES) {
-      item.artDataUrl = entry.imageDataUrl;
-      usedBytes += entry.imageBytes.length;
+    const previewBytes = entry.previewAsset?.bytes ?? entry.imageBytes;
+    const previewDataUrl = entry.previewAsset?.dataUrl ?? entry.imageDataUrl;
+    if (previewBytes.length <= MAX_CATALOG_INLINE_BYTES &&
+        usedBytes + previewBytes.length <= MAX_CATALOG_BYTES) {
+      item.artDataUrl = previewDataUrl;
+      usedBytes += previewBytes.length;
     }
     entries.push(item);
   }
@@ -890,9 +937,16 @@ async function verifySession(session) {
       const r = node.getBoundingClientRect();
       return { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height) };
     };
-    const home = document.querySelector('.dream-home');
-    const suggestions = home?.querySelector('.group\\\\/home-suggestions') ?? null;
+    const shellMain = document.querySelector('main.main-surface');
+    const homePresent = Boolean(shellMain?.classList.contains('dream-home-shell'));
+    const homeMarker = homePresent ? shellMain.querySelector(
+      '[data-testid="home-icon"], [data-feature="game-source"], .group\\\\/home-suggestions'
+    ) : null;
+    const homeIcon = homePresent ? shellMain.querySelector('[data-testid="home-icon"]') : null;
+    const suggestions = homePresent ? shellMain.querySelector('.group\\\\/home-suggestions') : null;
     const cards = suggestions ? [...suggestions.querySelectorAll('button')].map(box) : [];
+    const composer = box(document.querySelector('.composer-surface-chrome'));
+    const viewport = { width: innerWidth, height: innerHeight };
     const result = {
       installed: document.documentElement.classList.contains('codex-dream-skin'),
       version: window.__CODEX_DREAM_SKIN_STATE__?.version ?? null,
@@ -900,13 +954,14 @@ async function verifySession(session) {
       stylePresent: Boolean(document.getElementById('codex-dream-skin-style')),
       chromePresent: Boolean(document.getElementById('codex-dream-skin-chrome')),
       chromePointerEvents: getComputedStyle(document.getElementById('codex-dream-skin-chrome') || document.body).pointerEvents,
-      homePresent: Boolean(home),
+      homePresent,
+      homeMarkerPresent: Boolean(homeMarker),
+      homeIconDisplay: homeIcon ? getComputedStyle(homeIcon).display : null,
       suggestionsPresent: Boolean(suggestions),
-      hero: box(home?.firstElementChild?.firstElementChild?.firstElementChild),
       cards,
-      composer: box(document.querySelector('.composer-surface-chrome')),
+      composer,
       sidebar: box(document.querySelector('aside.app-shell-left-panel')),
-      viewport: { width: innerWidth, height: innerHeight },
+      viewport,
       documentOverflow: {
         x: document.documentElement.scrollWidth > document.documentElement.clientWidth,
         y: document.documentElement.scrollHeight > document.documentElement.clientHeight,
@@ -915,7 +970,10 @@ async function verifySession(session) {
     result.pass = result.installed && result.version === result.expectedVersion &&
       result.stylePresent && result.chromePresent &&
       result.chromePointerEvents === 'none' && Boolean(result.composer) && Boolean(result.sidebar) &&
-      (!result.homePresent || (Boolean(result.hero) &&
+      (!result.homePresent || (result.homeMarkerPresent &&
+        (!homeIcon || result.homeIconDisplay === 'none') &&
+        result.composer.y >= 0 && result.composer.y + result.composer.height <= result.viewport.height &&
+        !result.documentOverflow.y &&
         (!result.suggestionsPresent || (result.cards.length >= 2 && result.cards.length <= 4))));
     return result;
   })()`);
@@ -947,6 +1005,21 @@ async function capture(session, outputPath) {
     captureBeyondViewport: false,
   });
   await fs.writeFile(outputPath, Buffer.from(result.data, "base64"));
+}
+
+function hasValidAnalyzedThemeFields(value) {
+  const artKeys = value.art && typeof value.art === "object" && !Array.isArray(value.art)
+    ? Object.keys(value.art).sort().join(",") : "";
+  const paletteKeys = value.palette && typeof value.palette === "object" && !Array.isArray(value.palette)
+    ? Object.keys(value.palette).sort().join(",") : "";
+  return THEME_CHOICES.appearance.has(value.appearance) && value.appearance !== "auto" &&
+    artKeys === "focusX,focusY,safeArea,taskMode" &&
+    normalizedUnit(value.art.focusX, "art.focusX") !== null &&
+    normalizedUnit(value.art.focusY, "art.focusY") !== null &&
+    THEME_CHOICES.safeArea.has(value.art.safeArea) &&
+    THEME_CHOICES.taskMode.has(value.art.taskMode) &&
+    paletteKeys === "accent,secondary,surface,text" &&
+    Object.values(value.palette).every((color) => typeof color === "string" && /^#[\da-f]{6}$/i.test(color));
 }
 
 export function strictThemeRequest(value) {
@@ -989,12 +1062,49 @@ export function strictThemeRequest(value) {
   }
   if (value.kind === "custom-image") {
     const keys = Object.keys(value).sort();
-    if (keys.join(",") !== "imageDataUrl,inheritThemeId,kind,name,requestId,schemaVersion" ||
-        typeof value.inheritThemeId !== "string" || !THEME_ID_PATTERN.test(value.inheritThemeId) ||
-        typeof value.name !== "string" || value.name.length < 1 || value.name.length > 80 ||
-        /[\u0000-\u001f]/.test(value.name) ||
-        typeof value.imageDataUrl !== "string") {
+    const legacyShape = keys.join(",") === "imageDataUrl,inheritThemeId,kind,name,requestId,schemaVersion";
+    const analyzedShape = keys.join(",") === "appearance,art,imageDataUrl,kind,name,palette,previewDataUrl,requestId,schemaVersion";
+    const validNameAndImage = typeof value.name === "string" && value.name.length >= 1 &&
+      value.name.length <= 80 && !/[\u0000-\u001f]/.test(value.name) &&
+      typeof value.imageDataUrl === "string";
+    if (!validNameAndImage || (!legacyShape && !analyzedShape)) {
       throw new Error("Custom image request has invalid fields");
+    }
+    if (legacyShape) {
+      if (typeof value.inheritThemeId !== "string" || !THEME_ID_PATTERN.test(value.inheritThemeId)) {
+        throw new Error("Custom image request has invalid fields");
+      }
+      return value;
+    }
+    if (typeof value.previewDataUrl !== "string" || !hasValidAnalyzedThemeFields(value)) {
+      throw new Error("Custom image request has invalid analyzed fields");
+    }
+    return value;
+  }
+  if (value.kind === "set-theme-preview") {
+    const keys = Object.keys(value).sort();
+    if (keys.join(",") !== "kind,previewDataUrl,requestId,schemaVersion,themeId" ||
+        typeof value.themeId !== "string" || !THEME_ID_PATTERN.test(value.themeId) ||
+        typeof value.previewDataUrl !== "string") {
+      throw new Error("Theme preview request has invalid fields");
+    }
+    return value;
+  }
+  if (value.kind === "upgrade-saved-theme") {
+    const keys = Object.keys(value).sort();
+    if (keys.join(",") !== "appearance,art,kind,palette,previewDataUrl,requestId,schemaVersion,themeId" ||
+        typeof value.themeId !== "string" || !THEME_ID_PATTERN.test(value.themeId) ||
+        typeof value.previewDataUrl !== "string" || !hasValidAnalyzedThemeFields(value)) {
+      throw new Error("Saved theme upgrade request has invalid fields");
+    }
+    return value;
+  }
+  if (value.kind === "set-theme-polaroid") {
+    const keys = Object.keys(value).sort();
+    if (keys.join(",") !== "imageDataUrl,kind,requestId,schemaVersion,themeId" ||
+        typeof value.themeId !== "string" || !THEME_ID_PATTERN.test(value.themeId) ||
+        typeof value.imageDataUrl !== "string") {
+      throw new Error("Theme polaroid request has invalid fields");
     }
     return value;
   }
@@ -1016,13 +1126,13 @@ async function writeThemeAck(session, ack) {
   await session.evaluate(`window[${JSON.stringify(THEME_ACK_KEY)}] = ${JSON.stringify(ack)};`).catch(() => {});
 }
 
-export function decodeImageDataUrl(value) {
+export function decodeImageDataUrl(value, maxBytes = MAX_CUSTOM_BYTES, label = "Custom image") {
   const match = /^data:image\/(png|jpeg|webp);base64,([a-z0-9+/=]+)$/i.exec(value);
   if (!match) throw new Error("Custom image must be a base64 PNG, JPEG, or WebP data URL");
   const extension = match[1].toLowerCase() === "jpeg" ? ".jpg" : `.${match[1].toLowerCase()}`;
   const bytes = Buffer.from(match[2], "base64");
-  if (!bytes.length || bytes.length > MAX_CUSTOM_BYTES) throw new Error("Custom image exceeds the 8 MB limit");
-  if (!readImageMetadata(bytes, extension)) throw new Error("Custom image metadata is invalid or unsafe");
+  if (!bytes.length || bytes.length > maxBytes) throw new Error(`${label} exceeds the ${maxBytes / 1024 / 1024} MB limit`);
+  if (!readImageMetadata(bytes, extension)) throw new Error(`${label} metadata is invalid or unsafe`);
   return { bytes, extension };
 }
 
@@ -1037,54 +1147,47 @@ async function writeBytesAtomically(filePath, bytes) {
   }
 }
 
-async function createCustomTheme(themeDir, request, inherited) {
+export async function createCustomTheme(themeDir, request) {
   const { bytes, extension } = decodeImageDataUrl(request.imageDataUrl);
+  const preview = request.previewDataUrl
+    ? decodeImageDataUrl(request.previewDataUrl, MAX_PREVIEW_BYTES, "Theme preview")
+    : null;
   const savedRoot = path.join(themeStateRoot(themeDir), "themes");
-  const customDirectory = path.join(savedRoot, "renderer-custom");
   await fs.mkdir(savedRoot, { recursive: true });
-  await fs.mkdir(customDirectory, { recursive: true });
   const realSavedRoot = await fs.realpath(savedRoot);
-  const realCustomDirectory = await fs.realpath(customDirectory);
-  const relative = path.relative(realSavedRoot, realCustomDirectory);
-  if (relative.startsWith("..") || path.isAbsolute(relative)) throw new Error("Custom theme escaped the managed themes directory");
-  const imageName = `art-${Date.now()}-${Math.random().toString(16).slice(2)}${extension}`;
-  const imagePath = path.join(realCustomDirectory, imageName);
-  await writeBytesAtomically(imagePath, bytes);
-  const inheritedTheme = inherited?.theme ?? {};
-  const branding = {};
-  for (const key of ["logo", "polaroid"]) {
-    const asset = inherited?.assets?.[key];
-    if (!asset) continue;
-    const assetName = `${key}${asset.extension}`;
-    await writeBytesAtomically(path.join(realCustomDirectory, assetName), asset.bytes);
-    branding[key] = assetName;
-  }
+  const id = `custom-${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 10)}`;
+  const customDirectory = path.join(realSavedRoot, id);
+  const stagingDirectory = path.join(realSavedRoot, `.theme-staging-${id}`);
+  await fs.mkdir(stagingDirectory, { recursive: false });
+  const imageName = `art${extension}`;
+  const previewName = preview ? `preview${preview.extension}` : null;
   const theme = {
-    id: "custom-upload",
+    id,
     name: request.name.trim(),
     image: imageName,
-    appearance: "auto",
-    art: { focusX: null, focusY: null, safeArea: "auto", taskMode: "auto" },
-    palette: inheritedTheme.palette ?? {},
-    branding,
+    appearance: request.appearance ?? "auto",
+    art: request.art ?? { focusX: null, focusY: null, safeArea: "auto", taskMode: "auto" },
+    palette: request.palette ?? {},
+    branding: {},
+    ...(previewName ? { preview: previewName } : {}),
   };
-  await writeJsonAtomically(path.join(realCustomDirectory, "theme.json"), theme);
-  for (const item of await fs.readdir(realCustomDirectory, { withFileTypes: true })) {
-    if (item.isFile() && /^art-/.test(item.name) && item.name !== imageName) {
-      await fs.rm(path.join(realCustomDirectory, item.name), { force: true }).catch(() => {});
-    }
+  try {
+    await fs.writeFile(path.join(stagingDirectory, imageName), bytes, { flag: "wx" });
+    if (preview) await fs.writeFile(path.join(stagingDirectory, previewName), preview.bytes, { flag: "wx" });
+    await writeJsonAtomically(path.join(stagingDirectory, "theme.json"), theme);
+    await fs.rename(stagingDirectory, customDirectory);
+  } finally {
+    await fs.rm(stagingDirectory, { recursive: true, force: true }).catch(() => {});
   }
-  return loadTheme(realCustomDirectory);
+  return loadTheme(customDirectory);
 }
 
-export async function deleteSavedTheme(themeDir, themeId, catalog) {
+async function managedSavedThemeDirectory(themeDir, themeId, catalog, action) {
   if (!THEME_ID_PATTERN.test(themeId) || themeId === NATIVE_THEME_ID) {
-    throw new Error("Cannot delete an invalid theme ID");
+    throw new Error(`Cannot ${action} an invalid theme ID`);
   }
   const entry = catalog?.entries?.get(themeId);
-  if (!entry || entry.source !== "saved") {
-    throw new Error("Only themes in My Themes can be deleted");
-  }
+  if (!entry || entry.source !== "saved") throw new Error(`Only themes in My Themes can be ${action}`);
   const savedRoot = path.join(themeStateRoot(themeDir), "themes");
   const [realSavedRoot, realThemeDirectory] = await Promise.all([
     fs.realpath(savedRoot),
@@ -1093,13 +1196,71 @@ export async function deleteSavedTheme(themeDir, themeId, catalog) {
   const relative = path.relative(realSavedRoot, realThemeDirectory);
   const segments = relative.split(path.sep).filter(Boolean);
   if (!relative || relative.startsWith("..") || path.isAbsolute(relative) || segments.length !== 1) {
-    throw new Error("Theme deletion escaped the managed saved-theme directory");
+    throw new Error(`Theme ${action} escaped the managed saved-theme directory`);
   }
   const realThemePath = await fs.realpath(entry.themePath);
   if (path.dirname(realThemePath).toLowerCase() !== realThemeDirectory.toLowerCase() ||
       path.basename(realThemePath).toLowerCase() !== "theme.json") {
-    throw new Error("Theme deletion rejected an unexpected theme manifest path");
+    throw new Error(`Theme ${action} rejected an unexpected theme manifest path`);
   }
+  return { entry, realThemeDirectory, realThemePath };
+}
+
+export async function setSavedThemePreview(themeDir, themeId, previewDataUrl, catalog) {
+  const { entry, realThemeDirectory, realThemePath } = await managedSavedThemeDirectory(
+    themeDir, themeId, catalog, "preview update",
+  );
+  const preview = decodeImageDataUrl(previewDataUrl, MAX_PREVIEW_BYTES, "Theme preview");
+  const previewName = `preview${preview.extension}`;
+  await writeBytesAtomically(path.join(realThemeDirectory, previewName), preview.bytes);
+  const raw = JSON.parse(await fs.readFile(realThemePath, "utf8"));
+  const oldPreview = typeof raw.preview === "string" ? raw.preview : null;
+  raw.preview = previewName;
+  await writeJsonAtomically(realThemePath, raw);
+  if (oldPreview && oldPreview !== previewName && path.basename(oldPreview) === oldPreview) {
+    await fs.rm(path.join(realThemeDirectory, oldPreview), { force: true }).catch(() => {});
+  }
+  return entry;
+}
+
+export async function upgradeSavedTheme(themeDir, request, catalog) {
+  if (!hasValidAnalyzedThemeFields(request)) throw new Error("Saved theme analysis is invalid");
+  await setSavedThemePreview(themeDir, request.themeId, request.previewDataUrl, catalog);
+  const { entry, realThemePath } = await managedSavedThemeDirectory(
+    themeDir, request.themeId, catalog, "analysis update",
+  );
+  const raw = JSON.parse(await fs.readFile(realThemePath, "utf8"));
+  raw.appearance = request.appearance;
+  raw.art = request.art;
+  raw.palette = request.palette;
+  await writeJsonAtomically(realThemePath, raw);
+  return entry;
+}
+
+export async function setSavedThemePolaroid(themeDir, themeId, imageDataUrl, catalog) {
+  const { entry, realThemeDirectory, realThemePath } = await managedSavedThemeDirectory(
+    themeDir, themeId, catalog, "polaroid update",
+  );
+  const image = decodeImageDataUrl(imageDataUrl, MAX_BRANDING_BYTES, "Theme polaroid");
+  const imageName = `polaroid${image.extension}`;
+  await writeBytesAtomically(path.join(realThemeDirectory, imageName), image.bytes);
+  const raw = JSON.parse(await fs.readFile(realThemePath, "utf8"));
+  const oldPolaroid = raw?.branding && typeof raw.branding.polaroid === "string"
+    ? raw.branding.polaroid : null;
+  raw.branding = raw.branding && typeof raw.branding === "object" && !Array.isArray(raw.branding)
+    ? raw.branding : {};
+  raw.branding.polaroid = imageName;
+  delete raw.polaroid;
+  await writeJsonAtomically(realThemePath, raw);
+  if (oldPolaroid && oldPolaroid !== imageName && path.basename(oldPolaroid) === oldPolaroid &&
+      /^polaroid\.(?:png|jpe?g|webp)$/i.test(oldPolaroid)) {
+    await fs.rm(path.join(realThemeDirectory, oldPolaroid), { force: true }).catch(() => {});
+  }
+  return entry;
+}
+
+export async function deleteSavedTheme(themeDir, themeId, catalog) {
+  const { entry, realThemeDirectory } = await managedSavedThemeDirectory(themeDir, themeId, catalog, "deleted");
   await fs.rm(realThemeDirectory, { recursive: true });
   return entry;
 }
@@ -1314,15 +1475,42 @@ async function runWatch(options) {
             selectedThemeId = selectedEntry.theme.id;
             await writeThemeSelection(options.themeDir, selectedThemeId);
             nextPayload = await loadPayload(options.themeDir, selectedEntry, nextCatalog);
-          } else {
-            const inherited = nextCatalog.entries.get(request.inheritThemeId);
-            if (!inherited) throw new Error(`Inherited theme is not present in the watcher catalog: ${request.inheritThemeId}`);
-            selectedEntry = await createCustomTheme(options.themeDir, request, inherited);
+          } else if (request.kind === "set-theme-preview") {
+            await setSavedThemePreview(options.themeDir, request.themeId, request.previewDataUrl, nextCatalog);
+            nextCatalog = await loadThemeCatalog(options.themeDir);
+            selectedEntry = selectedThemeId === NATIVE_THEME_ID
+              ? null
+              : nextCatalog.entries.get(selectedThemeId) ?? preferredFallbackEntry(nextCatalog);
+            nextPayload = selectedThemeId === NATIVE_THEME_ID
+              ? await loadNativePayload(options.themeDir, nextCatalog)
+              : await loadPayload(options.themeDir, selectedEntry, nextCatalog);
+          } else if (request.kind === "upgrade-saved-theme") {
+            await upgradeSavedTheme(options.themeDir, request, nextCatalog);
+            nextCatalog = await loadThemeCatalog(options.themeDir);
+            selectedEntry = selectedThemeId === NATIVE_THEME_ID
+              ? null
+              : nextCatalog.entries.get(selectedThemeId) ?? preferredFallbackEntry(nextCatalog);
+            nextPayload = selectedThemeId === NATIVE_THEME_ID
+              ? await loadNativePayload(options.themeDir, nextCatalog)
+              : await loadPayload(options.themeDir, selectedEntry, nextCatalog);
+          } else if (request.kind === "set-theme-polaroid") {
+            await setSavedThemePolaroid(options.themeDir, request.themeId, request.imageDataUrl, nextCatalog);
+            nextCatalog = await loadThemeCatalog(options.themeDir);
+            selectedEntry = selectedThemeId === NATIVE_THEME_ID
+              ? null
+              : nextCatalog.entries.get(selectedThemeId) ?? preferredFallbackEntry(nextCatalog);
+            nextPayload = selectedThemeId === NATIVE_THEME_ID
+              ? await loadNativePayload(options.themeDir, nextCatalog)
+              : await loadPayload(options.themeDir, selectedEntry, nextCatalog);
+          } else if (request.kind === "custom-image") {
+            selectedEntry = await createCustomTheme(options.themeDir, request);
             nextCatalog = await loadThemeCatalog(options.themeDir);
             selectedEntry = nextCatalog.entries.get(selectedEntry.theme.id) ?? selectedEntry;
             selectedThemeId = selectedEntry.theme.id;
             await writeThemeSelection(options.themeDir, selectedThemeId);
             nextPayload = await loadPayload(options.themeDir, selectedEntry, nextCatalog);
+          } else {
+            throw new Error(`Unsupported watcher request kind: ${request.kind}`);
           }
           await writeThemeAck(session, {
             schemaVersion: 1,
