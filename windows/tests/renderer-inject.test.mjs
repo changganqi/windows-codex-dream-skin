@@ -30,6 +30,7 @@ assert.match(css, /main\.main-surface\.dream-home-shell \[data-testid="home-icon
 
 function createFixture({
   shellPresent,
+  sidebarPresent = shellPresent,
   staleSkin = false,
   homePresent = false,
   utilityPresent = false,
@@ -45,6 +46,7 @@ function createFixture({
   const observers = [];
   let objectUrlCount = 0;
   let hasShell = shellPresent;
+  let hasSidebar = sidebarPresent;
   let root;
 
   const queueRootClassMutation = () => {
@@ -192,7 +194,7 @@ function createFixture({
     getElementById(id) { return nodes.get(id) ?? null; },
     querySelector(selector) {
       if (selector === "main.main-surface") return hasShell ? shellMain : null;
-      if (selector === "aside.app-shell-left-panel") return hasShell ? {} : null;
+      if (selector === "aside.app-shell-left-panel") return hasShell && hasSidebar ? {} : null;
       if (selector === '[role="main"]:has([data-testid="home-icon"])' ||
           selector.startsWith('[role="main"]:has(')) {
         return hasShell && homePresent ? routeMain : null;
@@ -272,6 +274,7 @@ function createFixture({
     routeClasses,
     utilityClasses,
     setShellPresent(value) { hasShell = value; },
+    setSidebarPresent(value) { hasSidebar = value; },
   };
 }
 
@@ -292,6 +295,22 @@ assert.equal(main.rootClasses.has("dream-theme-dark"), false);
 assert.equal(main.nodes.has("codex-dream-skin-style"), false);
 assert.equal(main.nodes.has("codex-dream-skin-chrome"), false);
 assert.deepEqual(main.revokedUrls, ["blob:fixture-1"]);
+
+const collapsedSidebar = createFixture({ shellPresent: true, sidebarPresent: false });
+vm.runInNewContext(payload, collapsedSidebar.context);
+assert.equal(collapsedSidebar.rootClasses.has("codex-dream-skin"), true);
+assert.equal(collapsedSidebar.nodes.has("codex-dream-skin-style"), true);
+assert.equal(collapsedSidebar.nodes.has("codex-dream-theme-center"), true);
+assert.equal(collapsedSidebar.rootStyles.get("--dream-art"), 'url("blob:fixture-1")');
+
+const toggledSidebar = createFixture({ shellPresent: true });
+vm.runInNewContext(payload, toggledSidebar.context);
+toggledSidebar.setSidebarPresent(false);
+toggledSidebar.context.window.__CODEX_DREAM_SKIN_STATE__.ensure();
+assert.equal(toggledSidebar.rootClasses.has("codex-dream-skin"), true);
+assert.equal(toggledSidebar.nodes.has("codex-dream-skin-style"), true);
+assert.equal(toggledSidebar.nodes.has("codex-dream-theme-center"), true);
+assert.equal(toggledSidebar.rootStyles.get("--dream-art"), 'url("blob:fixture-1")');
 
 const native = createFixture({ shellPresent: true });
 const nativeResult = vm.runInNewContext(buildPayload({

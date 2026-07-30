@@ -280,22 +280,22 @@ html.codex-dream-skin.dream-theme-dark
   color: var(--dream-accent) !important;
 }
 
-html.codex-dream-skin.dream-theme-dark main.main-surface > header.app-header-tint button[aria-label],
-html.codex-dream-skin.dream-theme-dark main.main-surface > header.app-header-tint button[aria-label] svg {
+html.codex-dream-skin main.main-surface > header.app-header-tint button[aria-label],
+html.codex-dream-skin main.main-surface > header.app-header-tint button[aria-label] svg {
   color: var(--dream-accent) !important;
 }
 
-html.codex-dream-skin.dream-theme-dark main.main-surface > header.app-header-tint
+html.codex-dream-skin main.main-surface > header.app-header-tint
   button[aria-label="切换置顶摘要"],
-html.codex-dream-skin.dream-theme-dark main.main-surface > header.app-header-tint
+html.codex-dream-skin main.main-surface > header.app-header-tint
   button[aria-label="切换底部面板显示"],
-html.codex-dream-skin.dream-theme-dark main.main-surface > header.app-header-tint
+html.codex-dream-skin main.main-surface > header.app-header-tint
   button[aria-label="显示/隐藏侧边栏"],
-html.codex-dream-skin.dream-theme-dark main.main-surface > header.app-header-tint
+html.codex-dream-skin main.main-surface > header.app-header-tint
   button[aria-label="切换置顶摘要"] svg,
-html.codex-dream-skin.dream-theme-dark main.main-surface > header.app-header-tint
+html.codex-dream-skin main.main-surface > header.app-header-tint
   button[aria-label="切换底部面板显示"] svg,
-html.codex-dream-skin.dream-theme-dark main.main-surface > header.app-header-tint
+html.codex-dream-skin main.main-surface > header.app-header-tint
   button[aria-label="显示/隐藏侧边栏"] svg {
   color: var(--dream-accent) !important;
   fill: currentColor !important;

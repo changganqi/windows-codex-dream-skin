@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.5 - 2026-07-30
+
+- Kept the active skin, theme center, and palette mounted when Codex removes the left-sidebar DOM while the sidebar is collapsed.
+- Allowed the watcher and startup verifier to recognize the primary Codex renderer without requiring a visible sidebar, while continuing to exclude auxiliary `initialRoute` windows.
+- Applied the selected theme accent to title-bar action icons in both light and dark appearances.
+
 ## 1.0.4 - 2026-07-27
 
 - Restored the native new-task layout after Codex changed its private home-page nesting; the gray Codex home icon remains hidden without structural `first-child` selectors.

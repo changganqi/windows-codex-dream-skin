@@ -33,6 +33,7 @@
 
 - HeiGe 风格主题中心，顶部圆形按钮可直接切换主题或导入图片；上传后会自动取色、选择浅色/深色外观，并生成持久缩略图。
 - 主题选择写入 `%LOCALAPPDATA%\CodexDreamSkin\selected-theme.json`，由 Fei watcher 在页面重载后重新注入。
+- 左侧任务栏可以随时折叠；Codex 卸载侧栏节点时，背景、主题中心和当前主题图标颜色仍会保留。
 - 每个自定义主题拥有独立目录，原图、缩略图和可选拍立得都保存在 `%LOCALAPPDATA%\CodexDreamSkin\themes`，不会引用用户原始图片路径，也不会继承上一主题的 logo 或拍立得。
 - 主题中心底部的“展示拍立得”只控制当前主题自己的拍立得；当前主题没有拍立得时开关会禁用，“我的主题”可在旁边添加或更换。显示状态由 watcher 写入 `%LOCALAPPDATA%\CodexDreamSkin\ui-preferences.json`。
 - 桌面主入口叫 `Codex.lnk`，使用官方 Codex 图标，并通过 `wscript.exe` 隐藏控制台。图标缓存位于 `%LOCALAPPDATA%\CodexDreamSkin\codex.ico`。

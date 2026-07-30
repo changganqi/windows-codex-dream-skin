@@ -7,7 +7,7 @@ import { readImageMetadata } from "./image-metadata.mjs";
 const scriptPath = fileURLToPath(import.meta.url);
 const here = path.dirname(scriptPath);
 const root = path.resolve(here, "..");
-const SKIN_VERSION = "1.4.0";
+const SKIN_VERSION = "1.4.1";
 const MAX_ART_BYTES = 16 * 1024 * 1024;
 const MAX_BRANDING_BYTES = 4 * 1024 * 1024;
 const MAX_CUSTOM_BYTES = 8 * 1024 * 1024;
@@ -778,9 +778,12 @@ async function probeSession(session) {
       composer: Boolean(document.querySelector('.composer-surface-chrome')),
       main: Boolean(document.querySelector('[role="main"]')),
     };
+    const primaryRoute = !/[?&]initialRoute=/.test(location.search);
     return {
       markers,
-      codex: location.protocol === 'app:' && markers.shell && markers.sidebar && (markers.composer || markers.main),
+      primaryRoute,
+      codex: location.protocol === 'app:' && primaryRoute && markers.shell &&
+        (markers.composer || markers.main),
     };
   })()`);
 }
@@ -857,8 +860,8 @@ export function earlyPayloadFor(payload, revision) {
       const root = document.documentElement;
       if (!root || !document.body) return false;
       const shell = document.querySelector('main.main-surface');
-      const sidebar = document.querySelector('aside.app-shell-left-panel');
-      if (!shell || !sidebar) return false;
+      const primaryRoute = !/[?&]initialRoute=/.test(location.search);
+      if (!shell || !primaryRoute) return false;
       stop();
       ${payload};
       window[appliedKey] = generation;
@@ -954,6 +957,7 @@ async function verifySession(session) {
       stylePresent: Boolean(document.getElementById('codex-dream-skin-style')),
       chromePresent: Boolean(document.getElementById('codex-dream-skin-chrome')),
       chromePointerEvents: getComputedStyle(document.getElementById('codex-dream-skin-chrome') || document.body).pointerEvents,
+      shellPresent: Boolean(shellMain),
       homePresent,
       homeMarkerPresent: Boolean(homeMarker),
       homeIconDisplay: homeIcon ? getComputedStyle(homeIcon).display : null,
@@ -968,8 +972,8 @@ async function verifySession(session) {
       },
     };
     result.pass = result.installed && result.version === result.expectedVersion &&
-      result.stylePresent && result.chromePresent &&
-      result.chromePointerEvents === 'none' && Boolean(result.composer) && Boolean(result.sidebar) &&
+      result.stylePresent && result.chromePresent && result.shellPresent &&
+      result.chromePointerEvents === 'none' && Boolean(result.composer) &&
       (!result.homePresent || (result.homeMarkerPresent &&
         (!homeIcon || result.homeIconDisplay === 'none') &&
         result.composer.y >= 0 && result.composer.y + result.composer.height <= result.viewport.height &&

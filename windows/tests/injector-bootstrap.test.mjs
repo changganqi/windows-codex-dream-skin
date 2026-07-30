@@ -25,13 +25,14 @@ assert.match(
   "Renderer verification must reject a new-task composer pushed below the viewport.",
 );
 
-function createFixture() {
+function createFixture({ search = "" } = {}) {
   const observers = [];
   const timers = new Map();
   let nextTimer = 1;
   const markers = { shell: false, sidebar: false };
   const context = {
     window: { installs: [] },
+    location: { protocol: "app:", search },
     document: {
       documentElement: {},
       body: {},
@@ -65,16 +66,22 @@ vm.runInNewContext(earlyPayloadFor('window.installs.push("guarded")', "guarded")
 assert.deepEqual(guarded.context.window.installs, [], "Auxiliary app targets must remain untouched.");
 guarded.markers.shell = true;
 guarded.observers[0].callback([]);
-assert.deepEqual(guarded.context.window.installs, [], "A main surface without the Codex sidebar is not sufficient.");
-guarded.markers.sidebar = true;
-guarded.observers[0].callback([]);
-assert.deepEqual(guarded.context.window.installs, ["guarded"], "The guarded payload should install once the shell is complete.");
+assert.deepEqual(
+  guarded.context.window.installs,
+  ["guarded"],
+  "A collapsed sidebar must not prevent installation on the primary Codex surface.",
+);
+
+const auxiliary = createFixture({ search: "?initialRoute=%2Favatar-overlay" });
+auxiliary.markers.shell = true;
+vm.runInNewContext(earlyPayloadFor('window.installs.push("auxiliary")', "auxiliary"), auxiliary.context);
+assert.deepEqual(auxiliary.context.window.installs, [],
+  "Auxiliary initialRoute windows must remain untouched even when they expose a main surface.");
 
 const generations = createFixture();
 vm.runInNewContext(earlyPayloadFor('window.installs.push("old")', "old"), generations.context);
 vm.runInNewContext(earlyPayloadFor('window.installs.push("new")', "new"), generations.context);
 generations.markers.shell = true;
-generations.markers.sidebar = true;
 for (const observer of generations.observers) observer.callback([]);
 assert.deepEqual(
   generations.context.window.installs,
@@ -94,5 +101,7 @@ assert.match(source, /if \(!fallbackTargets\.get\(id\)\) return;/,
   "Fallback listeners must stay inert after a successful early registration.");
 assert.match(source, /Page\.removeScriptToEvaluateOnNewDocument/,
   "Watcher shutdown and theme refresh must unregister persistent Page scripts.");
+assert.doesNotMatch(source, /markers\.shell && markers\.sidebar/,
+  "Primary renderer discovery must not require the optional sidebar DOM.");
 
 console.log("PASS: Windows early injection is shell-guarded, generation-safe, ordered before probing, and fallback-scoped.");

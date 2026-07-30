@@ -145,7 +145,7 @@
   const existingStyle = document.getElementById(STYLE_ID);
   if (existingStyle) {
     existingStyle.textContent = cssText;
-    existingStyle.dataset.dreamVersion = "4";
+    existingStyle.dataset.dreamVersion = "5";
   }
 
   const hexColor = (red, green, blue) => `#${[red, green, blue]
@@ -989,8 +989,7 @@
     if (!root || !document.body) return;
 
     const shellMain = document.querySelector("main.main-surface");
-    const shellSidebar = document.querySelector("aside.app-shell-left-panel");
-    if (!shellMain || !shellSidebar) {
+    if (!shellMain) {
       clearSkinDom();
       return;
     }
@@ -1001,9 +1000,9 @@
       style.id = STYLE_ID;
       (document.head || root).appendChild(style);
     }
-    if (style.dataset.dreamVersion !== "4") {
+    if (style.dataset.dreamVersion !== "5") {
       style.textContent = cssText;
-      style.dataset.dreamVersion = "4";
+      style.dataset.dreamVersion = "5";
     }
 
     if (nativeMode) {
@@ -1090,7 +1089,7 @@
   const ackTimer = setInterval(refreshThemeAck, 300);
   window[STATE_KEY] = {
     ensure, cleanup, disposeThemeCenter: removeThemeCenter, observer, timer, ackTimer, scheduler,
-    artUrl, brandingUrls, profile, config, installToken, version: "1.4.0",
+    artUrl, brandingUrls, profile, config, installToken, version: "1.4.1",
   };
   ensure();
   analyzeArt().then((result) => {
@@ -1101,5 +1100,5 @@
     ensure();
     void persistCurrentPreviewIfNeeded(result);
   });
-  return { installed: true, version: "1.4.0", adaptive: true };
+  return { installed: true, version: "1.4.1", adaptive: true };
 })(__DREAM_CSS_JSON__, __DREAM_ART_JSON__, __DREAM_THEME_JSON__, __DREAM_BRANDING_JSON__, __DREAM_CATALOG_JSON__, __DREAM_CURRENT_SOURCE_JSON__, __DREAM_UI_PREFERENCES_JSON__)
