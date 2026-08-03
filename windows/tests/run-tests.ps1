@@ -60,14 +60,11 @@ try {
   try {
     $testListener.Start()
     $testPort = ([System.Net.IPEndPoint]$testListener.LocalEndpoint).Port
-    $listenerTimer = [System.Diagnostics.Stopwatch]::StartNew()
     $listenerRecords = @(Get-DreamSkinPortListeners -Port $testPort)
-    $listenerTimer.Stop()
     if ($listenerRecords.Count -ne 1 -or
       $listenerRecords[0].LocalAddress -ne '127.0.0.1' -or
-      $listenerRecords[0].OwningProcess -ne $PID -or
-      $listenerTimer.ElapsedMilliseconds -gt 5000) {
-      throw 'Native TCP listener ownership lookup is missing, inaccurate, or unexpectedly slow.'
+      $listenerRecords[0].OwningProcess -ne $PID) {
+      throw 'Native TCP listener ownership lookup is missing or inaccurate.'
     }
   } finally {
     $testListener.Stop()

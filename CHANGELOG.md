@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Removed a wall-clock threshold from the native TCP ownership regression so transient GitHub-hosted runner load cannot fail an otherwise correct PowerShell 7 build.
+- Updated the CI checkout and Node setup actions to their Node 24-based v5 releases.
+
 ## 1.0.6 - 2026-08-03
 
 - Restored startup on Codex Store 26.727 builds after the native main surface moved from the legacy `main-surface` class to a versioned CSS Modules class.
