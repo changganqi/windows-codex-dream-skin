@@ -41,6 +41,7 @@
     "--dream-polaroid",
   ];
   const HOME_UTILITY_CLASS = "dream-home-utility";
+  const MAIN_SURFACE_CLASS = "dream-main-surface";
   const installToken = {};
   let samplingNativeShell = false;
   let observer = null;
@@ -436,6 +437,7 @@
     document.querySelectorAll(".dream-home").forEach((node) => node.classList.remove("dream-home"));
     document.querySelectorAll(".dream-task").forEach((node) => node.classList.remove("dream-task"));
     document.querySelectorAll(".dream-home-shell").forEach((node) => node.classList.remove("dream-home-shell"));
+    document.querySelectorAll("." + MAIN_SURFACE_CLASS).forEach((node) => node.classList.remove(MAIN_SURFACE_CLASS));
     document.querySelectorAll(`.${HOME_UTILITY_CLASS}`).forEach((node) => node.classList.remove(HOME_UTILITY_CLASS));
     document.getElementById(CHROME_ID)?.remove();
     document.getElementById(POLAROID_ID)?.remove();
@@ -988,11 +990,12 @@
     const root = document.documentElement;
     if (!root || !document.body) return;
 
-    const shellMain = document.querySelector("main.main-surface");
+    const shellMain = document.querySelector("main." + MAIN_SURFACE_CLASS) ?? document.querySelector("main");
     if (!shellMain) {
       clearSkinDom();
       return;
     }
+    shellMain.classList.add(MAIN_SURFACE_CLASS);
 
     let style = document.getElementById(STYLE_ID);
     if (!style) {
@@ -1017,7 +1020,7 @@
     const homeMarker = shellMain.querySelector?.(
       '[data-testid="home-icon"], [data-feature="game-source"], .group\\/home-suggestions',
     ) ?? document.querySelector(
-      'main.main-surface [data-testid="home-icon"], main.main-surface [data-feature="game-source"], main.main-surface .group\\/home-suggestions',
+      'main.dream-main-surface [data-testid="home-icon"], main.dream-main-surface [data-feature="game-source"], main.dream-main-surface .group\\/home-suggestions',
     );
     const roleHome = document.querySelector('[role="main"]:has([data-testid="home-icon"], [data-feature="game-source"], .group\\/home-suggestions)');
     const home = roleHome ?? homeMarker?.closest?.('[role="main"]') ?? null;
@@ -1089,7 +1092,7 @@
   const ackTimer = setInterval(refreshThemeAck, 300);
   window[STATE_KEY] = {
     ensure, cleanup, disposeThemeCenter: removeThemeCenter, observer, timer, ackTimer, scheduler,
-    artUrl, brandingUrls, profile, config, installToken, version: "1.4.1",
+    artUrl, brandingUrls, profile, config, installToken, version: "1.4.2",
   };
   ensure();
   analyzeArt().then((result) => {
@@ -1100,5 +1103,5 @@
     ensure();
     void persistCurrentPreviewIfNeeded(result);
   });
-  return { installed: true, version: "1.4.1", adaptive: true };
+  return { installed: true, version: "1.4.2", adaptive: true };
 })(__DREAM_CSS_JSON__, __DREAM_ART_JSON__, __DREAM_THEME_JSON__, __DREAM_BRANDING_JSON__, __DREAM_CATALOG_JSON__, __DREAM_CURRENT_SOURCE_JSON__, __DREAM_UI_PREFERENCES_JSON__)

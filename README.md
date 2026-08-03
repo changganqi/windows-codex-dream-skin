@@ -75,6 +75,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 进入 Codex 后，点击顶部 Miku 圆形按钮打开主题中心。选中的主题由 watcher 保存，不需要点击 HeiGe 的“皮肤常驻”。自定义背景图也从这个面板导入：每次上传会创建一个独立的“我的主题”，自动生成配色、浅深外观和卡片缩略图，源图片之后可以移动或删除。点击“不使用主题”可持久切回 Codex 原生界面，同时保留顶部主题中心入口；右键主题卡片可二次确认删除。“我的主题”会从受管目录删除，内置主题则写入升级安全的隐藏清单，不修改发布文件。
 
 Store 更新 Codex 后仍使用同一个桌面快捷方式。启动器每次都通过 `Get-AppxPackage OpenAI.Codex` 选择当前注册的最高版本，并刷新固定路径下的官方图标；代码里没有写死 `WindowsApps\OpenAI.Codex_26.x...` 目录。
+主 renderer 使用插件自己的 `dream-main-surface` 标记，不依赖 Codex 构建中可能被 CSS Modules 重命名的私有 main class。
 
 刚启动时可能短暂显示默认主题，等页面和 CDP 准备完成后才会出现皮肤。这是当前注入方式的启动顺序，不代表主题丢失。
 

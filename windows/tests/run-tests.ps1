@@ -848,7 +848,7 @@ try {
   $css = Read-DreamSkinUtf8File -Path (Join-Path $Root 'assets\dream-skin.css')
   foreach ($requiredCss in @(
     'background-image: var(--dream-art)',
-    'main.main-surface > header.app-header-tint',
+    'main.dream-main-surface > header.app-header-tint',
     '[class~="group/application-menu-top-bar"]',
     '.app-shell-main-content-top-fade',
     '.thread-scroll-container .bg-gradient-to-t.from-token-main-surface-primary',
@@ -856,7 +856,7 @@ try {
     'background-position: var(--dream-art-position)',
     '.dream-home-utility',
     ':has(.dream-home-utility) .composer-surface-chrome',
-    ':is(.dream-task-ambient, .dream-task-banner):has(main.main-surface:not(.dream-home-shell))',
+    ':is(.dream-task-ambient, .dream-task-banner):has(main.dream-main-surface:not(.dream-home-shell))',
     'html.codex-dream-skin body #root aside.app-shell-left-panel',
     'html.codex-dream-skin body #root .composer-surface-chrome'
   )) {

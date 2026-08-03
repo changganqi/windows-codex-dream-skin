@@ -7,7 +7,7 @@ import { readImageMetadata } from "./image-metadata.mjs";
 const scriptPath = fileURLToPath(import.meta.url);
 const here = path.dirname(scriptPath);
 const root = path.resolve(here, "..");
-const SKIN_VERSION = "1.4.1";
+const SKIN_VERSION = "1.4.2";
 const MAX_ART_BYTES = 16 * 1024 * 1024;
 const MAX_BRANDING_BYTES = 4 * 1024 * 1024;
 const MAX_CUSTOM_BYTES = 8 * 1024 * 1024;
@@ -773,7 +773,7 @@ async function readThemeSourceStamp(loadedTheme) {
 async function probeSession(session) {
   return session.evaluate(`(() => {
     const markers = {
-      shell: Boolean(document.querySelector('main.main-surface')),
+      shell: Boolean(document.querySelector('main')),
       sidebar: Boolean(document.querySelector('aside.app-shell-left-panel')),
       composer: Boolean(document.querySelector('.composer-surface-chrome')),
       main: Boolean(document.querySelector('[role="main"]')),
@@ -859,9 +859,10 @@ export function earlyPayloadFor(payload, revision) {
       if (window[generationKey] !== generation) { stop(); return true; }
       const root = document.documentElement;
       if (!root || !document.body) return false;
-      const shell = document.querySelector('main.main-surface');
+      const shell = document.querySelector('main');
       const primaryRoute = !/[?&]initialRoute=/.test(location.search);
       if (!shell || !primaryRoute) return false;
+      shell.classList.add('dream-main-surface');
       stop();
       ${payload};
       window[appliedKey] = generation;
@@ -909,6 +910,7 @@ async function removeFromSession(session) {
     document.querySelectorAll('.dream-home').forEach((node) => node.classList.remove('dream-home'));
     document.querySelectorAll('.dream-task').forEach((node) => node.classList.remove('dream-task'));
     document.querySelectorAll('.dream-home-shell').forEach((node) => node.classList.remove('dream-home-shell'));
+    document.querySelectorAll('.dream-main-surface').forEach((node) => node.classList.remove('dream-main-surface'));
      document.getElementById('codex-dream-skin-style')?.remove();
      document.getElementById('codex-dream-skin-chrome')?.remove();
      document.getElementById('codex-dream-theme-center')?.remove();
@@ -925,6 +927,7 @@ async function verifyRemovedSession(session) {
     !document.querySelector('.dream-home') &&
     !document.querySelector('.dream-task') &&
     !document.querySelector('.dream-home-shell') &&
+    !document.querySelector('.dream-main-surface') &&
     !document.getElementById('codex-dream-skin-style') &&
      !document.getElementById('codex-dream-skin-chrome') &&
      !document.getElementById('codex-dream-theme-center') &&
@@ -940,7 +943,7 @@ async function verifySession(session) {
       const r = node.getBoundingClientRect();
       return { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height) };
     };
-    const shellMain = document.querySelector('main.main-surface');
+    const shellMain = document.querySelector('main.dream-main-surface');
     const homePresent = Boolean(shellMain?.classList.contains('dream-home-shell'));
     const homeMarker = homePresent ? shellMain.querySelector(
       '[data-testid="home-icon"], [data-feature="game-source"], .group\\\\/home-suggestions'

@@ -20,12 +20,12 @@ const payload = buildPayload();
 
 assert.doesNotMatch(
   css,
-  /main\.main-surface\s*>\s*header\.app-header-tint\s*\{[^}]*\b(?:position|z-index)\s*:/,
+  /main\.dream-main-surface\s*>\s*header\.app-header-tint\s*\{[^}]*\b(?:position|z-index)\s*:/,
   "The skin must preserve Codex's native fixed header so the side-panel toggle remains reachable.",
 );
 assert.doesNotMatch(css, /\.dream-home\s*>\s*div:first-child/,
   "Home layout must not depend on Codex's private first-child nesting.");
-assert.match(css, /main\.main-surface\.dream-home-shell \[data-testid="home-icon"\]/,
+assert.match(css, /main\.dream-main-surface\.dream-home-shell \[data-testid="home-icon"\]/,
   "The gray Codex home icon must remain hidden through a stable shell state.");
 
 function createFixture({
@@ -101,8 +101,9 @@ function createFixture({
       nodes.set(node.id, node);
     },
   };
+  const shellMainClasses = new Set();
   const shellMain = {
-    classList: makeClassList(),
+    classList: makeClassList(shellMainClasses),
     querySelector(selector) {
       if (homePresent && /home-icon|game-source|home-suggestions/.test(selector)) return homeMarker;
       return null;
@@ -193,19 +194,25 @@ function createFixture({
     createElement,
     getElementById(id) { return nodes.get(id) ?? null; },
     querySelector(selector) {
-      if (selector === "main.main-surface") return hasShell ? shellMain : null;
+      if (selector === "main.dream-main-surface") {
+        return hasShell && shellMainClasses.has("dream-main-surface") ? shellMain : null;
+      }
+      if (selector === "main") return hasShell ? shellMain : null;
       if (selector === "aside.app-shell-left-panel") return hasShell && hasSidebar ? {} : null;
       if (selector === '[role="main"]:has([data-testid="home-icon"])' ||
           selector.startsWith('[role="main"]:has(')) {
         return hasShell && homePresent ? routeMain : null;
       }
-      if (selector.startsWith('main.main-surface [data-testid="home-icon"]')) {
+      if (selector.startsWith('main.dream-main-surface [data-testid="home-icon"]')) {
         return hasShell && homePresent ? homeMarker : null;
       }
       return null;
     },
     querySelectorAll(selector) {
       if (selector === '[role="main"]') return hasShell ? [routeMain] : [];
+      if (selector === ".dream-main-surface") {
+        return shellMainClasses.has("dream-main-surface") ? [shellMain] : [];
+      }
       if (selector === ".dream-task") return routeClasses.has("dream-task") ? [routeMain] : [];
       if (selector === ".dream-home-utility") {
         return utilityClasses.has("dream-home-utility") ? [utilityNode] : [];
@@ -271,6 +278,7 @@ function createFixture({
     rootClasses,
     rootStyles,
     revokedUrls,
+    shellMainClasses,
     routeClasses,
     utilityClasses,
     setShellPresent(value) { hasShell = value; },
@@ -285,6 +293,7 @@ assert.equal(main.rootClasses.has("codex-dream-skin"), true);
 assert.equal(main.rootStyles.get("--dream-art"), 'url("blob:fixture-1")');
 assert.equal(main.nodes.has("codex-dream-skin-style"), true);
 assert.equal(main.nodes.has("codex-dream-skin-chrome"), true);
+assert.equal(main.shellMainClasses.has("dream-main-surface"), true);
 assert.equal(main.rootClasses.has("dream-theme-dark"), true);
 assert.equal(main.rootClasses.has("dream-art-standard"), true);
 assert.equal(main.rootClasses.has("dream-task-ambient"), true);
@@ -294,6 +303,7 @@ assert.equal(main.rootClasses.has("codex-dream-skin"), false);
 assert.equal(main.rootClasses.has("dream-theme-dark"), false);
 assert.equal(main.nodes.has("codex-dream-skin-style"), false);
 assert.equal(main.nodes.has("codex-dream-skin-chrome"), false);
+assert.equal(main.shellMainClasses.has("dream-main-surface"), false);
 assert.deepEqual(main.revokedUrls, ["blob:fixture-1"]);
 
 const collapsedSidebar = createFixture({ shellPresent: true, sidebarPresent: false });

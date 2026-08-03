@@ -30,6 +30,14 @@ function createFixture({ search = "" } = {}) {
   const timers = new Map();
   let nextTimer = 1;
   const markers = { shell: false, sidebar: false };
+  const shellClasses = new Set();
+  const shell = {
+    classList: {
+      add(...values) { values.forEach((value) => shellClasses.add(value)); },
+      remove(...values) { values.forEach((value) => shellClasses.delete(value)); },
+      contains(value) { return shellClasses.has(value); },
+    },
+  };
   const context = {
     window: { installs: [] },
     location: { protocol: "app:", search },
@@ -37,7 +45,7 @@ function createFixture({ search = "" } = {}) {
       documentElement: {},
       body: {},
       querySelector(selector) {
-        if (selector === "main.main-surface") return markers.shell ? {} : null;
+        if (selector === "main") return markers.shell ? shell : null;
         if (selector === "aside.app-shell-left-panel") return markers.sidebar ? {} : null;
         return null;
       },
@@ -58,7 +66,7 @@ function createFixture({ search = "" } = {}) {
     },
     clearTimeout(id) { timers.delete(id); },
   };
-  return { context, markers, observers };
+  return { context, markers, observers, shellClasses };
 }
 
 const guarded = createFixture();
@@ -71,6 +79,8 @@ assert.deepEqual(
   ["guarded"],
   "A collapsed sidebar must not prevent installation on the primary Codex surface.",
 );
+assert.equal(guarded.shellClasses.has("dream-main-surface"), true,
+  "Early injection must establish the plugin-owned main-surface contract.");
 
 const auxiliary = createFixture({ search: "?initialRoute=%2Favatar-overlay" });
 auxiliary.markers.shell = true;

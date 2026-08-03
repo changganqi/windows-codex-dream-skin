@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.6 - 2026-08-03
+
+- Restored startup on Codex Store 26.727 builds after the native main surface moved from the legacy `main-surface` class to a versioned CSS Modules class.
+- Added the plugin-owned `dream-main-surface` contract so renderer styling, lifecycle cleanup, one-shot commands, and verification no longer depend on Codex's private main-surface class name.
+- Kept auxiliary `initialRoute` windows excluded while using the semantic primary-route `<main>` element for forward-compatible discovery.
+
 ## 1.0.5 - 2026-07-30
 
 - Kept the active skin, theme center, and palette mounted when Codex removes the left-sidebar DOM while the sidebar is collapsed.
