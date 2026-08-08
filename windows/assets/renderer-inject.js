@@ -1092,7 +1092,7 @@
   const ackTimer = setInterval(refreshThemeAck, 300);
   window[STATE_KEY] = {
     ensure, cleanup, disposeThemeCenter: removeThemeCenter, observer, timer, ackTimer, scheduler,
-    artUrl, brandingUrls, profile, config, installToken, version: "1.4.2",
+    artUrl, brandingUrls, profile, config, installToken, version: "1.4.3",
   };
   ensure();
   analyzeArt().then((result) => {
@@ -1103,5 +1103,5 @@
     ensure();
     void persistCurrentPreviewIfNeeded(result);
   });
-  return { installed: true, version: "1.4.2", adaptive: true };
+  return { installed: true, version: "1.4.3", adaptive: true };
 })(__DREAM_CSS_JSON__, __DREAM_ART_JSON__, __DREAM_THEME_JSON__, __DREAM_BRANDING_JSON__, __DREAM_CATALOG_JSON__, __DREAM_CURRENT_SOURCE_JSON__, __DREAM_UI_PREFERENCES_JSON__)

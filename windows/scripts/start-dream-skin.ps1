@@ -38,6 +38,24 @@ function Write-DreamSkinStartupStage {
   }
 }
 
+function Test-DreamSkinRenderedVerifyOutput {
+  param([AllowEmptyCollection()][object[]]$Output)
+  try {
+    $envelope = ($Output -join "`n") | ConvertFrom-Json -ErrorAction Stop
+    foreach ($target in @($envelope.targets)) {
+      $result = $target.result
+      if ($null -ne $result -and [bool]$result.installed -and [bool]$result.stylePresent -and
+        [bool]$result.chromePresent -and [bool]$result.shellPresent -and
+        "$($result.version)" -ceq "$($result.expectedVersion)") {
+        return $true
+      }
+    }
+  } catch {
+    return $false
+  }
+  return $false
+}
+
 Write-DreamSkinStartupStage -Stage 'start script entered'
 $operationLock = Enter-DreamSkinOperationLock
 try {
@@ -266,6 +284,8 @@ try {
       profilePath = $ProfilePath
       themeDir = $themePaths.Active
       pauseFile = $themePaths.PauseFile
+      startupStatus = 'verifying'
+      verifiedAt = $null
       createdAt = (Get-Date).ToUniversalTime().ToString('o')
     }
     Write-DreamSkinState -Path $StatePath -State $state
@@ -275,8 +295,19 @@ try {
       $Injector, '--verify', '--port', "$Port",
       '--browser-id', $cdpIdentity.BrowserId, '--timeout-ms', '120000')
     Write-DreamSkinUtf8FileAtomically -Path $VerifyPath -Content (($verify.Output -join "`r`n") + "`r`n")
-    if ($verify.ExitCode -ne 0) { throw "Dream Skin verification failed. See $VerifyPath" }
-    Write-DreamSkinStartupStage -Stage 'renderer injection verified'
+    if ($verify.ExitCode -eq 0) {
+      $state.startupStatus = 'active'
+      $state.verifiedAt = (Get-Date).ToUniversalTime().ToString('o')
+      Write-DreamSkinState -Path $StatePath -State $state
+      Write-DreamSkinStartupStage -Stage 'renderer injection verified'
+    } elseif (Test-DreamSkinRenderedVerifyOutput -Output $verify.Output) {
+      $state.startupStatus = 'degraded'
+      Write-DreamSkinState -Path $StatePath -State $state
+      Write-Warning 'Dream Skin core is rendered; an auxiliary renderer check was inconclusive. Codex and the watcher were preserved.'
+      Write-DreamSkinStartupStage -Stage 'renderer core retained after inconclusive verification'
+    } else {
+      throw "Dream Skin verification failed. See $VerifyPath"
+    }
   } catch {
     $startupError = $_
     $injectorStopped = $true

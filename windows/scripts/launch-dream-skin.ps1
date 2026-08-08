@@ -52,15 +52,6 @@ function Test-DreamSkinOverlappingLaunchComplete {
   }
 }
 
-function Wait-DreamSkinOverlappingLaunch {
-  $deadline = (Get-Date).AddSeconds(150)
-  do {
-    if (Test-DreamSkinOverlappingLaunchComplete) { return $true }
-    Start-Sleep -Milliseconds 500
-  } while ((Get-Date) -lt $deadline)
-  return $false
-}
-
 $header = "[$((Get-Date).ToString('o'))] [$launchId] Hidden launch on port $Port using $startScript`r`n"
 Write-DreamSkinLaunchLog -Text $header
 $exitCode = 0
@@ -76,9 +67,8 @@ try {
   }
 } catch {
   $errorText = ($_ | Out-String)
-  if ($errorText -match 'Another Codex Dream Skin .*already running' -and
-      (Wait-DreamSkinOverlappingLaunch)) {
-    Write-DreamSkinLaunchLog -Text "[$((Get-Date).ToString('o'))] [$launchId] An overlapping launch completed successfully. Elapsed: $($stopwatch.ElapsedMilliseconds) ms.`r`n" -Append
+  if ($errorText -match 'Another Codex Dream Skin .*already running') {
+    Write-DreamSkinLaunchLog -Text "[$((Get-Date).ToString('o'))] [$launchId] A launch is already in progress; duplicate click ignored. Elapsed: $($stopwatch.ElapsedMilliseconds) ms.`r`n" -Append
   } else {
     Write-DreamSkinLaunchLog -Text ($errorText + "`r`n") -Append
     Write-DreamSkinLaunchLog -Text "[$((Get-Date).ToString('o'))] [$launchId] Hidden launch failed after $($stopwatch.ElapsedMilliseconds) ms.`r`n" -Append

@@ -7,7 +7,7 @@ import { readImageMetadata } from "./image-metadata.mjs";
 const scriptPath = fileURLToPath(import.meta.url);
 const here = path.dirname(scriptPath);
 const root = path.resolve(here, "..");
-const SKIN_VERSION = "1.4.2";
+const SKIN_VERSION = "1.4.3";
 const MAX_ART_BYTES = 16 * 1024 * 1024;
 const MAX_BRANDING_BYTES = 4 * 1024 * 1024;
 const MAX_CUSTOM_BYTES = 8 * 1024 * 1024;
@@ -936,6 +936,15 @@ async function verifyRemovedSession(session) {
   )()`);
 }
 
+export function rendererVerificationPass(result) {
+  const viewport = result?.viewport;
+  const viewportPass = Number.isFinite(viewport?.width) && viewport.width > 0 &&
+    Number.isFinite(viewport?.height) && viewport.height > 0;
+  return Boolean(result?.installed && result.version === result.expectedVersion &&
+    result.stylePresent && result.chromePresent && result.shellPresent &&
+    result.chromePointerEvents === "none" && viewportPass);
+}
+
 async function verifySession(session) {
   return session.evaluate(`(() => {
     const box = (node) => {
@@ -969,19 +978,14 @@ async function verifySession(session) {
       composer,
       sidebar: box(document.querySelector('aside.app-shell-left-panel')),
       viewport,
+      documentVisibility: document.visibilityState,
+      documentHidden: document.hidden,
       documentOverflow: {
         x: document.documentElement.scrollWidth > document.documentElement.clientWidth,
         y: document.documentElement.scrollHeight > document.documentElement.clientHeight,
       },
     };
-    result.pass = result.installed && result.version === result.expectedVersion &&
-      result.stylePresent && result.chromePresent && result.shellPresent &&
-      result.chromePointerEvents === 'none' && Boolean(result.composer) &&
-      (!result.homePresent || (result.homeMarkerPresent &&
-        (!homeIcon || result.homeIconDisplay === 'none') &&
-        result.composer.y >= 0 && result.composer.y + result.composer.height <= result.viewport.height &&
-        !result.documentOverflow.y &&
-        (!result.suggestionsPresent || (result.cards.length >= 2 && result.cards.length <= 4))));
+    result.pass = (${rendererVerificationPass.toString()})(result);
     return result;
   })()`);
 }

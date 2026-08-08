@@ -1,7 +1,11 @@
 # Changelog
 
-## Unreleased
+## 1.0.7 - 2026-08-08
 
+- Restored startup on Codex Store 26.803 builds by verifying plugin-owned renderer contracts instead of requiring Codex's optional composer and suggestion-card DOM.
+- Coalesced repeated desktop-shortcut clicks immediately so they cannot queue another restart behind an in-progress launch.
+- Preserved a live watcher and Codex session when the skin core is rendered but an auxiliary renderer check remains inconclusive.
+- Added regression coverage for the 26.803 home renderer shape with no initial composer or suggestion cards.
 - Removed a wall-clock threshold from the native TCP ownership regression so transient GitHub-hosted runner load cannot fail an otherwise correct PowerShell 7 build.
 - Updated the CI checkout and Node setup actions to their Node 24-based v5 releases.
 

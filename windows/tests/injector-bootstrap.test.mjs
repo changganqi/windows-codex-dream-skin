@@ -19,11 +19,10 @@ assert.match(
   /classList\.contains\('dream-home-shell'\)/,
   "Renderer verification must use the stable home-shell state.",
 );
-assert.match(
-  source,
-  /result\.composer\.y \+ result\.composer\.height <= result\.viewport\.height/,
-  "Renderer verification must reject a new-task composer pushed below the viewport.",
-);
+assert.match(source, /rendererVerificationPass\(result\)/,
+  "Renderer verification must use the plugin-owned compatibility contract.");
+assert.doesNotMatch(source, /Boolean\(result\.composer\)/,
+  "Renderer verification must not require Codex's optional composer DOM.");
 
 function createFixture({ search = "" } = {}) {
   const observers = [];

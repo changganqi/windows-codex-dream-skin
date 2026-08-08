@@ -895,6 +895,15 @@ try {
     -not $startSource.Contains("'--browser-id', `$cdpIdentity.BrowserId, '--timeout-ms', '120000'")) {
     throw 'Start does not retire previous-boot state before launch or allow enough time for a cold renderer.'
   }
+  foreach ($renderedFallbackContract in @(
+    'Test-DreamSkinRenderedVerifyOutput',
+    "startupStatus = 'degraded'",
+    'Codex and the watcher were preserved.'
+  )) {
+    if (-not $startSource.Contains($renderedFallbackContract)) {
+      throw "Rendered-skin fallback is missing: $renderedFallbackContract"
+    }
+  }
   $installSource = Read-DreamSkinUtf8File -Path (Join-Path $Root 'scripts\install-dream-skin.ps1')
   $installStopIndex = $installSource.IndexOf('Stop-DreamSkinRecordedInjector -State $existingState', [System.StringComparison]::Ordinal)
   $installRuntimeIndex = $installSource.IndexOf('Install-DreamSkinRuntimeEngine -SkillRoot $SkillRoot', [System.StringComparison]::Ordinal)
@@ -931,13 +940,16 @@ try {
     '-RestartExisting',
     'Hidden launch completed successfully.',
     'Get-DreamSkinVerifiedCdpIdentity',
-    'overlapping launch completed successfully.',
+    'duplicate click ignored.',
     'launch-history.log',
     'CdpReadyTimeoutSeconds 90'
   )) {
     if (-not ($hiddenLauncher + $hiddenLauncherPowerShell).Contains($hiddenLauncherContract)) {
       throw "Hidden launcher contract is missing: $hiddenLauncherContract"
     }
+  }
+  if ($hiddenLauncherPowerShell.Contains('Wait-DreamSkinOverlappingLaunch')) {
+    throw 'Repeated shortcut clicks can still queue behind an in-progress launch.'
   }
 
   $rendererSource = Read-DreamSkinUtf8File -Path (Join-Path $Root 'assets\renderer-inject.js')
@@ -1006,6 +1018,9 @@ try {
   $oneShotTest = Invoke-DreamSkinNative -FilePath $node.Path -ArgumentList @(
     (Join-Path $PSScriptRoot 'injector-one-shot.test.mjs'))
   if ($oneShotTest.ExitCode -ne 0) { throw 'Injector one-shot Browser ID regression test failed.' }
+  $verificationTest = Invoke-DreamSkinNative -FilePath $node.Path -ArgumentList @(
+    (Join-Path $PSScriptRoot 'injector-verification.test.mjs'))
+  if ($verificationTest.ExitCode -ne 0) { throw 'Injector renderer verification regression test failed.' }
   $imageMetadataTest = Invoke-DreamSkinNative -FilePath $node.Path -ArgumentList @(
     (Join-Path $PSScriptRoot 'image-metadata.test.mjs'))
   if ($imageMetadataTest.ExitCode -ne 0) { throw 'Image metadata regression test failed.' }
