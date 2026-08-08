@@ -28,6 +28,21 @@ assert.doesNotMatch(css, /\.dream-home\s*>\s*div:first-child/,
 assert.match(css, /main\.dream-main-surface\.dream-home-shell \[data-testid="home-icon"\]/,
   "The gray Codex home icon must remain hidden through a stable shell state.");
 
+const cssBlocks = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)];
+for (const [, selector, declarations] of cssBlocks) {
+  if (!/(?:aside\.app-shell-left-panel|\.composer-surface-chrome|\[data-user-message-bubble\]|\[data-codex-approval-surface\])/.test(selector)) continue;
+  assert.doesNotMatch(declarations, /backdrop-filter:\s*blur\(/,
+    `High-frequency surface must not sample the animated background: ${selector.trim()}`);
+}
+assert.doesNotMatch(template, /setInterval\(refreshThemeAck/,
+  "Theme acknowledgements must use events instead of a 300 ms poll.");
+assert.match(template, /addEventListener\(THEME_ACK_EVENT, ackListener\)/,
+  "Theme acknowledgements must subscribe to the watcher event.");
+assert.match(template, /setInterval\(ensure, 30000\)/,
+  "The renderer safety reconciliation must use the low-frequency Fei interval.");
+assert.match(template, /observer\.observe\(document\.body, \{ childList: true, subtree: true \}\)/,
+  "The subtree observer must ignore high-frequency descendant class changes.");
+
 function createFixture({
   shellPresent,
   sidebarPresent = shellPresent,
@@ -51,8 +66,10 @@ function createFixture({
 
   const queueRootClassMutation = () => {
     for (const observer of observers) {
-      if (observer.target !== root || !observer.options?.attributes) continue;
-      if (observer.options.attributeFilter && !observer.options.attributeFilter.includes("class")) continue;
+      const observations = observer.observations?.length
+        ? observer.observations : [{ target: observer.target, options: observer.options }];
+      if (!observations.some(({ target, options }) => target === root && options?.attributes &&
+        (!options.attributeFilter || options.attributeFilter.includes("class")))) continue;
       observer.records.push({ type: "attributes", attributeName: "class", target: root });
     }
   };
@@ -234,11 +251,13 @@ function createFixture({
         this.records = [];
         this.target = null;
         this.options = null;
+        this.observations = [];
         observers.push(this);
       }
       observe(target, options = {}) {
         this.target = target;
         this.options = options;
+        this.observations.push({ target, options });
       }
       disconnect() {
         this.target = null;

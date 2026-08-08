@@ -916,7 +916,7 @@ html.codex-dream-skin .composer-surface-chrome {
   border-radius: 18px !important;
   background: color-mix(in oklab, var(--dream-surface-raised) 95%, transparent) !important;
   box-shadow: 0 12px 34px color-mix(in oklab, var(--dream-accent) 8%, transparent) !important;
-  backdrop-filter: blur(14px) saturate(1.06) !important;
+  backdrop-filter: none !important;
 }
 
 html.codex-dream-skin .ProseMirror {
@@ -1102,7 +1102,7 @@ html.codex-dream-skin.dream-art-wide main.dream-main-surface
 html.codex-dream-skin aside.app-shell-left-panel {
   background: color-mix(in srgb, var(--heige-surface) 88%, transparent) !important;
   border-right: 1px solid color-mix(in srgb, var(--heige-accent) 45%, transparent) !important;
-  backdrop-filter: blur(20px) saturate(1.12) !important;
+  backdrop-filter: none !important;
 }
 
 html.codex-dream-skin main.dream-main-surface,
@@ -1122,9 +1122,9 @@ html.codex-dream-skin [data-user-message-bubble],
 html.codex-dream-skin [data-codex-approval-surface] {
   color: var(--heige-text) !important;
   border: 1px solid color-mix(in srgb, var(--heige-accent) 24%, transparent) !important;
-  background: color-mix(in srgb, var(--heige-surface) 60%, transparent) !important;
+  background: color-mix(in srgb, var(--heige-surface) 80%, transparent) !important;
   box-shadow: 0 8px 24px color-mix(in srgb, var(--heige-accent) 12%, transparent) !important;
-  backdrop-filter: blur(22px) saturate(1.08) !important;
+  backdrop-filter: none !important;
 }
 
 html.codex-dream-skin [data-app-action-sidebar-thread-active="true"] {
@@ -1150,7 +1150,7 @@ html.codex-dream-skin body #root aside.app-shell-left-panel {
   background-image: none !important;
   border-right-color: color-mix(in srgb, var(--heige-accent) 45%, transparent) !important;
   box-shadow: none !important;
-  backdrop-filter: blur(20px) saturate(1.12) !important;
+  backdrop-filter: none !important;
 }
 
 html.codex-dream-skin body #root aside.app-shell-left-panel
@@ -1166,11 +1166,11 @@ html.codex-dream-skin body #root .composer-surface-chrome,
 html.codex-dream-skin body #root [data-user-message-bubble],
 html.codex-dream-skin body #root [data-codex-approval-surface] {
   color: var(--heige-text) !important;
-  background-color: color-mix(in srgb, var(--heige-surface) 60%, transparent) !important;
+  background-color: color-mix(in srgb, var(--heige-surface) 80%, transparent) !important;
   background-image: none !important;
   border: 1px solid color-mix(in srgb, var(--heige-accent) 24%, transparent) !important;
   box-shadow: 0 8px 24px color-mix(in srgb, var(--heige-accent) 12%, transparent) !important;
-  backdrop-filter: blur(22px) saturate(1.08) !important;
+  backdrop-filter: none !important;
 }
 
 @media (max-width: 1120px) {

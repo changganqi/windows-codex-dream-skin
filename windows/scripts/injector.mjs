@@ -7,7 +7,7 @@ import { readImageMetadata } from "./image-metadata.mjs";
 const scriptPath = fileURLToPath(import.meta.url);
 const here = path.dirname(scriptPath);
 const root = path.resolve(here, "..");
-const SKIN_VERSION = "1.4.3";
+const SKIN_VERSION = "1.4.4";
 const MAX_ART_BYTES = 16 * 1024 * 1024;
 const MAX_BRANDING_BYTES = 4 * 1024 * 1024;
 const MAX_CUSTOM_BYTES = 8 * 1024 * 1024;
@@ -25,6 +25,7 @@ const HIDDEN_THEMES_SCHEMA = 1;
 const UI_PREFERENCES_SCHEMA = 1;
 const THEME_REQUEST_KEY = "__CODEX_DREAM_SKIN_THEME_REQUEST__";
 const THEME_ACK_KEY = "__CODEX_DREAM_SKIN_THEME_ACK__";
+const THEME_ACK_EVENT = "codex-dream-skin-theme-ack";
 const NATIVE_THEME_ID = "codex-native";
 
 class CdpIdentityMismatchError extends Error {}
@@ -1134,7 +1135,14 @@ async function takeThemeRequest(session) {
 
 async function writeThemeAck(session, ack) {
   if (session?.closed) return;
-  await session.evaluate(`window[${JSON.stringify(THEME_ACK_KEY)}] = ${JSON.stringify(ack)};`).catch(() => {});
+  await session.evaluate(`(() => {
+    window[${JSON.stringify(THEME_ACK_KEY)}] = ${JSON.stringify(ack)};
+    if (typeof window.dispatchEvent !== "function") return;
+    const event = typeof CustomEvent === "function"
+      ? new CustomEvent(${JSON.stringify(THEME_ACK_EVENT)})
+      : new Event(${JSON.stringify(THEME_ACK_EVENT)});
+    window.dispatchEvent(event);
+  })()`).catch(() => {});
 }
 
 export function decodeImageDataUrl(value, maxBytes = MAX_CUSTOM_BYTES, label = "Custom image") {

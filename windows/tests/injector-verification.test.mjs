@@ -3,8 +3,8 @@ import { rendererVerificationPass } from "../scripts/injector.mjs";
 
 const codex26803Home = {
   installed: true,
-  version: "1.4.3",
-  expectedVersion: "1.4.3",
+  version: "1.4.4",
+  expectedVersion: "1.4.4",
   stylePresent: true,
   chromePresent: true,
   chromePointerEvents: "none",

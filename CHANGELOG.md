@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.8 - 2026-08-08
+
+- Disabled backdrop sampling on the sidebar, composer, user bubbles, and approval surfaces, adopting HeiGe 5.4.12's high-frequency rendering optimization while preserving the migrated visual palette.
+- Split renderer observation into root appearance attributes and structural child changes so hover and streaming class mutations no longer schedule full skin reconciliation.
+- Replaced the 300 ms theme-acknowledgement poll with an explicit renderer event and reduced the fallback full-DOM safety pass from 5 seconds to 30 seconds.
+- Kept Fei's existing watcher audit throttling, target failure backoff, CDP list retry backoff, and no-focus-stealing status behavior unchanged.
+
 ## 1.0.7 - 2026-08-08
 
 - Restored startup on Codex Store 26.803 builds by verifying plugin-owned renderer contracts instead of requiring Codex's optional composer and suggestion-card DOM.

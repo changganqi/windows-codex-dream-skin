@@ -6,6 +6,7 @@
   const POLAROID_ID = "codex-dream-polaroid";
   const THEME_REQUEST_KEY = "__CODEX_DREAM_SKIN_THEME_REQUEST__";
   const THEME_ACK_KEY = "__CODEX_DREAM_SKIN_THEME_ACK__";
+  const THEME_ACK_EVENT = "codex-dream-skin-theme-ack";
   const NATIVE_THEME_ID = "codex-native";
   const ROOT_CLASSES = [
     "codex-dream-skin",
@@ -45,6 +46,7 @@
   const installToken = {};
   let samplingNativeShell = false;
   let observer = null;
+  let rootObserver = null;
   let themeCenter = null;
   let themeCenterDisposers = [];
   let forcedElectronAppearance = null;
@@ -111,8 +113,15 @@
 
   const previous = window[STATE_KEY];
   if (previous?.observer) previous.observer.disconnect();
+  if (previous?.rootObserver) previous.rootObserver.disconnect();
   if (previous?.timer) clearInterval(previous.timer);
   if (previous?.ackTimer) clearInterval(previous.ackTimer);
+  if (previous?.ackListener && typeof window.removeEventListener === "function") {
+    window.removeEventListener(THEME_ACK_EVENT, previous.ackListener);
+  }
+  if (previous?.mediaHandler && typeof previous?.mediaQuery?.removeEventListener === "function") {
+    previous.mediaQuery.removeEventListener("change", previous.mediaHandler);
+  }
   if (previous?.scheduler?.timeout) clearTimeout(previous.scheduler.timeout);
   previous?.disposeThemeCenter?.();
   if (previous?.artUrl) URL.revokeObjectURL(previous.artUrl);
@@ -412,7 +421,7 @@
         if (colorScheme.includes("light") && !colorScheme.includes("dark")) return "light";
       } finally {
         if (hadSkin) root.classList.add(...savedSkinClasses);
-        observer?.takeRecords?.();
+        rootObserver?.takeRecords?.();
         samplingNativeShell = false;
       }
     } catch {
@@ -1061,8 +1070,14 @@
     window.__CODEX_DREAM_SKIN_DISABLED__ = true;
     clearSkinDom();
     state?.observer?.disconnect();
+    state?.rootObserver?.disconnect();
     if (state?.timer) clearInterval(state.timer);
-    if (state?.ackTimer) clearInterval(state.ackTimer);
+    if (state?.ackListener && typeof window.removeEventListener === "function") {
+      window.removeEventListener(THEME_ACK_EVENT, state.ackListener);
+    }
+    if (state?.mediaHandler && typeof state?.mediaQuery?.removeEventListener === "function") {
+      state.mediaQuery.removeEventListener("change", state.mediaHandler);
+    }
     if (state?.scheduler?.timeout) clearTimeout(state.scheduler.timeout);
     if (state?.artUrl) URL.revokeObjectURL(state.artUrl);
     for (const url of Object.values(state?.brandingUrls ?? {})) URL.revokeObjectURL(url);
@@ -1078,21 +1093,38 @@
       ensure();
     }, 180);
   };
-  observer = new MutationObserver(() => {
+  rootObserver = new MutationObserver(() => {
     if (samplingNativeShell) return;
     scheduleEnsure();
   });
-  observer.observe(document.documentElement, {
-    childList: true,
-    subtree: true,
+  observer = new MutationObserver(scheduleEnsure);
+  rootObserver.observe(document.documentElement, {
     attributes: true,
     attributeFilter: ["class", "data-theme", "data-appearance", "data-color-mode"],
   });
-  const timer = setInterval(ensure, 5000);
-  const ackTimer = setInterval(refreshThemeAck, 300);
+  rootObserver.observe(document.body, {
+    attributes: true,
+    attributeFilter: ["class", "data-theme", "data-appearance", "data-color-mode"],
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+  const ackListener = refreshThemeAck;
+  if (typeof window.addEventListener === "function") {
+    window.addEventListener(THEME_ACK_EVENT, ackListener);
+  }
+  let mediaQuery = null;
+  let mediaHandler = null;
+  try {
+    mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    if (typeof mediaQuery?.addEventListener === "function") {
+      mediaHandler = scheduleEnsure;
+      mediaQuery.addEventListener("change", mediaHandler);
+    }
+  } catch {}
+  const timer = setInterval(ensure, 30000);
   window[STATE_KEY] = {
-    ensure, cleanup, disposeThemeCenter: removeThemeCenter, observer, timer, ackTimer, scheduler,
-    artUrl, brandingUrls, profile, config, installToken, version: "1.4.3",
+    ensure, cleanup, disposeThemeCenter: removeThemeCenter, observer, rootObserver, timer, scheduler,
+    ackListener, mediaQuery, mediaHandler,
+    artUrl, brandingUrls, profile, config, installToken, version: "1.4.4",
   };
   ensure();
   analyzeArt().then((result) => {
@@ -1103,5 +1135,5 @@
     ensure();
     void persistCurrentPreviewIfNeeded(result);
   });
-  return { installed: true, version: "1.4.3", adaptive: true };
+  return { installed: true, version: "1.4.4", adaptive: true };
 })(__DREAM_CSS_JSON__, __DREAM_ART_JSON__, __DREAM_THEME_JSON__, __DREAM_BRANDING_JSON__, __DREAM_CATALOG_JSON__, __DREAM_CURRENT_SOURCE_JSON__, __DREAM_UI_PREFERENCES_JSON__)

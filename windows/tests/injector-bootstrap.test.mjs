@@ -23,6 +23,8 @@ assert.match(source, /rendererVerificationPass\(result\)/,
   "Renderer verification must use the plugin-owned compatibility contract.");
 assert.doesNotMatch(source, /Boolean\(result\.composer\)/,
   "Renderer verification must not require Codex's optional composer DOM.");
+assert.match(source, /window\.dispatchEvent\(event\)/,
+  "Watcher theme acknowledgements must wake the renderer without polling.");
 
 function createFixture({ search = "" } = {}) {
   const observers = [];
